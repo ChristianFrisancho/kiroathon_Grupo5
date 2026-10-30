@@ -1,44 +1,86 @@
 import { api } from '../api.js';
-import { state } from '../state.js';
-import { formatDate, h, reviewBadge } from '../util.js';
+import { localCopyAvailable, state } from '../state.js';
+import { clear, errorBox, formatDate, h, reviewBadge } from '../util.js';
 
-// Hoy + Mi tiempo: portada mínima para preparar o retomar el trabajo.
-export async function renderHoy({ navigate }) {
-  const overview = await api.get('/api/overview');
+// Hoy + Mi tiempo. La orientación y «Preparar clase» se muestran de inmediato;
+// solo las sesiones recientes dependen de la API.
+export async function renderHoy({ navigate, isCurrent = () => true }) {
+  const recentBox = h('div', { class: 'card', 'aria-busy': 'true' },
+    h('p', { class: 'loading' }, 'Cargando sesiones recientes…'));
+  const engineNote = h('p', { class: 'muted small' });
   const pending = state.working;
 
-  const recent = overview.recentSessions.length
-    ? h('ul', { class: 'list' }, overview.recentSessions.map((s) =>
-        h('li', null,
-          h('div', { class: 'row between' },
-            h('div', null,
-              h('a', { href: `#/portafolio/${s.id}` }, s.title),
-              h('p', { class: 'muted small' }, `Actualizada ${formatDate(s.updatedAt)} · versión ${s.currentVersionNumber}`)),
-            h('div', { class: 'row' }, reviewBadge(s.reviewStatus),
-              s.recordCount ? h('span', { class: 'badge sim' }, `${s.recordCount} registro(s)`) : null)))))
-    : h('p', { class: 'muted' }, 'Aún no tienes sesiones guardadas. Prepara tu primera clase.');
-
-  return h('div', null,
-    h('h1', null, 'Hola, profe: ¿qué quieres hacer hoy?'),
-    h('p', { class: 'lead' }, 'Convierte un módulo en una clase para tu grupo, revísala y guarda tu trabajo. Tú decides cada paso.'),
-    h('div', { class: 'grid' },
-      h('div', { class: 'card highlight stack' },
-        h('h2', null, 'Mi aula'),
-        h('p', null, 'Crea un borrador de sesión con tu grado, tiempo y materiales.'),
-        h('a', { class: 'btn primary big', href: '#/aula' }, 'Preparar clase')),
-      h('div', { class: 'card stack' },
-        h('h2', null, 'Mi portafolio'),
-        h('p', null, 'Recupera tus sesiones, continúa editando y añade registros de aplicación.'),
-        h('a', { class: 'btn big', href: '#/portafolio' }, 'Mi portafolio'))),
+  const page = h('div', { class: 'home-page' },
+    h('section', { class: 'hero', 'aria-labelledby': 'home-title' },
+      h('p', { class: 'eyebrow' }, 'Copiloto del docente público'),
+      h('h1', { id: 'home-title' }, 'Tu próxima clase empieza aquí'),
+      h('p', { class: 'lead' },
+        'Transforma un módulo en una sesión para tu grupo, tu tiempo y tus materiales. '
+        + 'Revísala, guárdala y recupérala cuando lo necesites.'),
+      h('div', { class: 'row' },
+        h('a', { class: 'btn primary big', href: '#/aula' }, 'Preparar clase'),
+        h('a', { class: 'btn', href: '#/portafolio' }, 'Mi portafolio')),
+      h('ol', { class: 'how-steps' },
+        h('li', null, h('strong', null, 'Preparar: '), 'confirma grado, minutos y materiales.'),
+        h('li', null, h('strong', null, 'Revisar: '), 'corrige el borrador; tú decides la versión.'),
+        h('li', null, h('strong', null, 'Portafolio: '), 'recupera tu sesión y registra cómo te fue.')),
+      h('p', { class: 'muted small m0' }, 'La IA prepara; tú decides. Demostración con datos simulados.')),
+    state.discardedCorrupt
+      ? h('p', { class: 'alert warn' }, 'Encontramos una copia local dañada en este navegador y no pudimos usarla.')
+      : null,
     pending
-      ? h('div', { class: 'alert info' },
-          h('p', null, `Tienes un borrador sin guardar: «${pending.content.title}». Es una copia de trabajo local; aún no está en tu portafolio.`),
+      ? h('section', { class: 'alert info', 'aria-labelledby': 'pending-title' },
+          h('h2', { id: 'pending-title', class: 'm0' }, 'Tienes cambios pendientes de guardar'),
+          h('p', null, pending.content.title),
+          h('p', { class: 'small' }, localCopyAvailable()
+            ? 'Copia local en este navegador: todavía no está guardada en tu portafolio.'
+            : 'Copia solo en esta pestaña: el navegador no permite guardar copias locales.'),
           h('button', { type: 'button', class: 'btn', onclick: () => navigate('/revisar') }, 'Continuar borrador'))
       : null,
-    h('h2', null, 'Mi tiempo · sesiones recientes'),
-    h('div', { class: 'card' }, recent),
-    h('p', { class: 'muted small' },
-      overview.generator.isBedrock
-        ? 'Los borradores se generan con Amazon Bedrock.'
-        : `Motor de borradores en esta versión: ${overview.generator.label}`));
+    h('section', { 'aria-labelledby': 'recent-title' },
+      h('div', { class: 'row between' },
+        h('h2', { id: 'recent-title' }, 'Tus sesiones recientes'),
+        h('a', { href: '#/portafolio' }, 'Ver mi portafolio')),
+      recentBox),
+    engineNote);
+
+  async function loadRecent() {
+    recentBox.setAttribute('aria-busy', 'true');
+    clear(recentBox);
+    recentBox.appendChild(h('p', { class: 'loading' }, 'Cargando sesiones recientes…'));
+    try {
+      const overview = await api.get('/api/overview');
+      if (!isCurrent()) return;
+      if (!overview || !Array.isArray(overview.recentSessions)) {
+        throw new Error('No pudimos interpretar las sesiones recientes.');
+      }
+      clear(recentBox);
+      if (overview.recentSessions.length === 0) {
+        recentBox.appendChild(h('div', { class: 'empty-state' },
+          h('h3', { class: 'm0' }, 'Tu portafolio empieza con una clase'),
+          h('p', null, 'Prepara una sesión y guárdala para encontrarla aquí.'),
+          h('a', { class: 'btn', href: '#/aula' }, 'Preparar clase')));
+      } else {
+        recentBox.appendChild(h('ul', { class: 'list' }, overview.recentSessions.map((s) =>
+          h('li', null,
+            h('div', { class: 'row between' },
+              h('div', { class: 'grow' },
+                h('a', { class: 'session-title', href: `#/portafolio/${s.id}` }, s.title),
+                h('p', { class: 'muted small m0' },
+                  `Actualizada ${formatDate(s.updatedAt)} · versión ${s.currentVersionNumber}`)),
+              reviewBadge(s.reviewStatus))))));
+      }
+      const generator = overview.generator;
+      engineNote.textContent = generator ? `Origen de los borradores: ${generator.label}` : '';
+    } catch (error) {
+      if (!isCurrent()) return;
+      clear(recentBox);
+      recentBox.appendChild(errorBox(error.message || 'No pudimos cargar tus sesiones.', loadRecent));
+    } finally {
+      if (isCurrent()) recentBox.setAttribute('aria-busy', 'false');
+    }
+  }
+
+  void loadRecent();
+  return page;
 }

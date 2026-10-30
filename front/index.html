@@ -5,25 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AulaLista · Copiloto del docente público</title>
   <meta name="description" content="Del módulo del curso a la sesión de clase y al portafolio de evidencias, para docentes de colegio público.">
+  <meta name="theme-color" content="#0b0a0d">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <a class="skip-link" href="#app">Saltar al contenido</a>
 
   <header class="site-header">
-    <div class="brand">
+    <a class="brand" href="#/hoy">
       <span class="brand-mark" aria-hidden="true">🎃</span>
-      <div>
-        <p class="brand-name">AulaLista</p>
-        <p class="brand-sub">Copiloto del docente público</p>
-      </div>
-    </div>
+      <span>
+        <span class="brand-name">AulaLista</span>
+        <span class="brand-sub">Copiloto del docente público</span>
+      </span>
+    </a>
     <nav class="main-nav" aria-label="Secciones principales">
-      <ul>
+      <ul class="nav-primary">
         <li><a href="#/hoy" data-nav="hoy">Hoy</a></li>
         <li><a href="#/aprendizaje" data-nav="aprendizaje">Mi aprendizaje</a></li>
         <li><a href="#/aula" data-nav="aula">Mi aula</a></li>
         <li><a href="#/portafolio" data-nav="portafolio">Mi portafolio</a></li>
+      </ul>
+      <ul class="nav-secondary" aria-label="Secciones complementarias">
         <li><a href="#/red" data-nav="red">Mi red</a></li>
         <li><a href="#/oportunidades" data-nav="oportunidades">Mis oportunidades</a></li>
         <li><a href="#/bienestar" data-nav="bienestar">Mi bienestar</a></li>
@@ -38,7 +41,16 @@
   <div id="status" class="sr-only" role="status" aria-live="polite"></div>
 
   <main id="app" tabindex="-1">
-    <p class="loading">Cargando AulaLista…</p>
+    <section class="hero">
+      <p class="eyebrow">Copiloto del docente público</p>
+      <h1>Tu próxima clase empieza aquí</h1>
+      <p class="lead">Transforma un módulo en una sesión para tu grupo, revísala y guárdala en tu portafolio.</p>
+      <p><a class="btn primary big" href="#/aula">Preparar clase</a></p>
+      <p class="loading">Cargando AulaLista…</p>
+    </section>
+    <noscript>
+      <p class="alert warn">AulaLista necesita JavaScript activado para preparar, revisar y guardar sesiones. Actívalo en tu navegador y recarga la página.</p>
+    </noscript>
   </main>
 
   <footer class="site-footer">

@@ -64,16 +64,38 @@ export function ratingLine(summary, isSimulated) {
   return parts.join(' · ');
 }
 
-export function errorBox(message, onRetry) {
-  return h('div', { class: 'alert error', role: 'alert' },
-    h('p', null, message),
+// Caja de error. `onRetry` solo para lecturas o generaciones sin persistir: nunca para escrituras.
+export function errorBox(message, onRetry, problems = []) {
+  return h('div', { class: 'alert error', role: 'alert', tabindex: '-1' },
+    h('p', { class: 'm0' }, h('strong', null, 'Error: '), message),
+    problems.length ? h('ul', { class: 'problem-list' }, problems.map((p) => h('li', null, p))) : null,
     onRetry ? h('button', { type: 'button', class: 'btn', onclick: onRetry }, 'Reintentar') : null);
 }
 
 export function reviewBadge(status) {
   return status === 'revisada'
-    ? h('span', { class: 'badge ok' }, 'Revisada por el docente')
+    ? h('span', { class: 'badge ok' }, 'Revisada')
     : h('span', { class: 'badge draft' }, 'Borrador');
+}
+
+// Origen del borrador declarado por el servidor (Bedrock, respaldo local, plantilla o docente).
+export function engineBadge(generatedBy) {
+  if (!generatedBy) return null;
+  if (generatedBy.engine === 'manual') return h('span', { class: 'badge' }, 'Editada por el docente');
+  if (generatedBy.isBedrock) return h('span', { class: 'badge ai' }, 'Amazon Bedrock');
+  if (generatedBy.engine === 'local-respaldo') return h('span', { class: 'badge draft' }, 'Respaldo local');
+  return h('span', { class: 'badge' }, 'Plantilla local');
+}
+
+export function disableAll(container, disabled) {
+  container.querySelectorAll('input, select, textarea, button').forEach((el) => {
+    if (disabled) {
+      if (!el.disabled) { el.dataset.lockedByOp = '1'; el.disabled = true; }
+    } else if (el.dataset.lockedByOp) {
+      delete el.dataset.lockedByOp;
+      el.disabled = false;
+    }
+  });
 }
 
 export function simBadge(isSimulated, text = 'Datos simulados') {

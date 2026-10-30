@@ -1,5 +1,5 @@
-import { api } from '../api.js';
-import { setWorking } from '../state.js';
+import { api, detailsList, writeErrorMessage } from '../api.js';
+import { setWorking, state } from '../state.js';
 import { announce, append, clear, errorBox, formatDate, h, ratingLine, simBadge, formatScore } from '../util.js';
 
 const CRITERIA = [
@@ -24,7 +24,7 @@ export async function renderRed() {
         h('p', { class: 'muted' }, `${e.authorLabel} · ${e.grade} · Materiales: ${e.materials.join(', ') || 'ninguno'}`),
         h('p', null, e.purpose),
         h('p', { class: 'score' }, ratingLine(e.ratingSummary, e.isSimulated)),
-        h('a', { class: 'btn primary', href: `#/red/${e.id}` }, 'Abrir experiencia'))),
+        h('a', { class: 'btn', href: `#/red/${e.id}` }, 'Abrir experiencia'))),
     h('p', { class: 'muted small' }, 'Para compartir tu propia experiencia, revisa una sesión en Mi portafolio y elige «Compartir copia».'));
 }
 
@@ -73,13 +73,20 @@ export async function renderExperiencia({ params, navigate }) {
         h('p', { class: 'muted small' }, 'Se construye solo con las valoraciones y comentarios registrados.'),
         h('button', {
           type: 'button', class: 'btn',
-          onclick: async () => {
+          onclick: async (e) => {
+            const button = e.currentTarget;
+            button.disabled = true;
             clear(summaryBox);
+            summaryBox.appendChild(h('p', { class: 'loading', role: 'status' }, 'Resumiendo…'));
             try {
               const result = await api.get(`/api/experiences/${exp.id}/summary`);
+              clear(summaryBox);
               append(summaryBox, [h('p', { class: 'pre' }, result.text), h('p', { class: 'muted small' }, result.generatedBy.label)]);
             } catch (error) {
+              clear(summaryBox);
               summaryBox.appendChild(errorBox(error.message));
+            } finally {
+              button.disabled = false;
             }
           },
         }, 'Resumir acuerdos'),
@@ -105,7 +112,7 @@ export async function renderExperiencia({ params, navigate }) {
     context.value = mine ? mine.context : '';
     const keep = h('textarea', { id: 'v-keep' }); keep.value = mine ? mine.whatToKeep : '';
     const change = h('textarea', { id: 'v-change' }); change.value = mine ? mine.whatToChange : '';
-    const submit = h('button', { type: 'submit', class: 'btn primary' }, mine ? 'Actualizar mi valoración' : 'Enviar valoración');
+    const submit = h('button', { type: 'submit', class: 'btn' }, mine ? 'Actualizar mi valoración' : 'Enviar valoración');
 
     const form = exp.isMine
       ? h('p', { class: 'alert info' }, 'Eres la persona autora: tu autoevaluación no entra en la valoración de la comunidad.')
@@ -123,7 +130,7 @@ export async function renderExperiencia({ params, navigate }) {
             paint();
             announce('Valoración guardada');
           } catch (error) {
-            feedback.appendChild(errorBox(error.message));
+            feedback.appendChild(errorBox(writeErrorMessage(error, 'guardar la valoración'), null, detailsList(error)));
             submit.disabled = false;
           }
         },
@@ -179,7 +186,7 @@ export async function renderExperiencia({ params, navigate }) {
             exp = await api.post(`/api/experiences/${exp.id}/comments`, { text: text.value });
             paint();
           } catch (error) {
-            feedback.appendChild(errorBox(error.message));
+            feedback.appendChild(errorBox(writeErrorMessage(error, 'publicar el comentario')));
             submit.disabled = false;
           }
         },
@@ -201,6 +208,7 @@ export async function renderExperiencia({ params, navigate }) {
         class: 'stack',
         onsubmit: async (event) => {
           event.preventDefault();
+          if (state.working && !window.confirm('Tienes otro borrador sin guardar en este navegador. ¿Reemplazarlo por esta adaptación?')) return;
           submit.disabled = true;
           submit.textContent = 'Adaptando…';
           clear(feedback);

@@ -59,7 +59,7 @@ class FrontServingTests(unittest.TestCase):
         status, headers, body = self.server.request("GET", "/")
         self.assertEqual(status, 200)
         self.assertTrue(headers["Content-Type"].startswith("text/html"))
-        self.assertIn(b"AulaLista", body)
+        self.assertIn(b"Docente Presente", body)
         self.assertNotIn("Location", headers)
 
     def test_assets_con_tipo_correcto(self):

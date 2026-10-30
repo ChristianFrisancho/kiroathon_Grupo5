@@ -1,4 +1,4 @@
-# Plan de tareas: AulaLista
+# Plan de tareas: Docente Presente
 
 En orden de ejecución. Estados: **[x] probado en local**, **desplegado** y **verificado públicamente** se indican aparte. La fase 3 está desplegada desde el commit `c68e513` (ver docs/VERIFICACION.md).
 

@@ -392,7 +392,7 @@ class FrontFromLambdaTests(LambdaTestCase):
         self.assertEqual(response["statusCode"], 200)
         self.assertTrue(response["headers"]["Content-Type"].startswith("text/html"))
         self.assertNotIn("Location", response["headers"])
-        self.assertIn("AulaLista", response["body"])
+        self.assertIn("Docente Presente", response["body"])
 
     def test_assets_y_rutas_fuera_de_front(self):
         self.assertEqual(app.handler(event("GET", "/js/app.js"), None)["statusCode"], 200)

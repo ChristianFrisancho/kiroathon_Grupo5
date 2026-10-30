@@ -1,4 +1,4 @@
-# AulaLista: ayuda al docente de colegio público a pasar del módulo del curso a una clase y a su portafolio
+# Docente Presente: ayuda al docente de colegio público a pasar del módulo del curso a una clase y a su portafolio
 
 **Equipo T005, Los 4 del grupo 5 · Track: Copiloto del docente público.** *Del módulo del curso a la sesión de clase y al portafolio de evidencias.*
 

@@ -1,4 +1,4 @@
-# AulaLista: convenciones del proyecto (equipo T005)
+# Docente Presente: convenciones del proyecto (equipo T005)
 
 ## Producto
 Copiloto del docente de colegio público (track «Copiloto del docente público»). Historia única: módulo → contexto confirmado → borrador con Amazon Bedrock → revisión humana → guardado → portafolio → registro de aplicación ligado a una versión. Principio: la IA prepara; el docente decide.

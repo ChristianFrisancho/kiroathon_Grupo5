@@ -16,7 +16,7 @@ from .static import SECURITY_HEADERS, resolve_static
 
 def make_handler(service: Service, front_dir: Optional[str]):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "AulaLista/0.2"
+        server_version = "DocentePresente/0.2"
 
         def log_message(self, fmt, *args):  # registros sin datos del cuerpo
             if os.environ.get("AULALISTA_QUIET"):
@@ -67,7 +67,7 @@ def create_server(settings: Settings, service: Optional[Service] = None) -> Thre
 def main() -> None:
     settings = load_settings()
     httpd = create_server(settings)
-    print("AulaLista en http://%s:%d  (generador: %s, almacén: %s, modo demo: %s)"
+    print("Docente Presente en http://%s:%d  (generador: %s, almacén: %s, modo demo: %s)"
           % (settings.host, httpd.server_address[1], settings.generator, settings.store, settings.demo_mode))
     try:
         httpd.serve_forever()

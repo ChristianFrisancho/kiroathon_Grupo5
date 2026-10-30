@@ -1,4 +1,4 @@
-"""Lógica de negocio de AulaLista. El docente decide; la IA solo prepara borradores."""
+"""Lógica de negocio de Docente Presente. El docente decide; la IA solo prepara borradores."""
 from __future__ import annotations
 
 import hashlib

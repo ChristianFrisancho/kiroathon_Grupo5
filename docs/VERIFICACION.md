@@ -1,4 +1,4 @@
-# Verificación de AulaLista (equipo T005)
+# Verificación de Docente Presente (equipo T005)
 
 - **URL base**, confirmada con el Output `ApiUrl` del stack de CloudFormation `aulalista-t005` (us-east-1): `https://nxrlbbnerb.execute-api.us-east-1.amazonaws.com`
 - **Equipo:** T005.

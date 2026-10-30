@@ -88,7 +88,7 @@ class BrowserTests(unittest.TestCase):
         self.assertEqual(p.get_by_label("Duración en minutos").input_value(), "45")
         p.get_by_role("button", name="Crear borrador").click(); actions.append("Crear borrador")
         p.get_by_role("heading", name="Revisar el borrador").wait_for()
-        self.assertEqual(p.title(), "Revisar el borrador · AulaLista")
+        self.assertEqual(p.title(), "Revisar el borrador · Docente Presente")
         p.get_by_text("Ver referencias").first.click(); actions.append("Ver referencias")
         self.assertIn("Escuchar a otra persona", p.locator("details[open] .source").first.inner_text())
         p.get_by_label("Título de la sesión").fill("Escucha activa: mi versión"); actions.append("Editar título")
@@ -332,7 +332,7 @@ class BrowserTests(unittest.TestCase):
         p.get_by_role("link", name="Preparar clase").first.click()
         p.get_by_label("Grado").wait_for()
         self.assertEqual(p.evaluate("document.activeElement.tagName"), "H1")  # cambio de ruta → foco en el h1
-        self.assertEqual(p.title(), "Preparar clase · AulaLista")
+        self.assertEqual(p.title(), "Preparar clase · Docente Presente")
         self.assertEqual(p.evaluate("document.querySelectorAll('main h1').length"), 1)
         self.assertEqual(p.evaluate("[...document.querySelectorAll('[tabindex]')].filter(e => e.tabIndex > 0).length"), 0)
 

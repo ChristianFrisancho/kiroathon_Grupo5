@@ -1,4 +1,4 @@
-# Requisitos: AulaLista, copiloto del docente público
+# Requisitos: Docente Presente, copiloto del docente público
 
 ## Introducción
 

@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "name": "Revisar tasks.md al guardar la spec",
-  "description": "Cuando cambia requirements.md o design.md de la spec de AulaLista, revisa que tasks.md siga cubriendo cada requisito y que solo estén marcadas como hechas las tareas implementadas y probadas.",
+  "description": "Cuando cambia requirements.md o design.md de la spec de Docente Presente, revisa que tasks.md siga cubriendo cada requisito y que solo estén marcadas como hechas las tareas implementadas y probadas.",
   "version": "1",
   "when": {
     "type": "fileEdited",

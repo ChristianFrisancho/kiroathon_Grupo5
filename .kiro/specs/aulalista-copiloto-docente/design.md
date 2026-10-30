@@ -1,4 +1,4 @@
-# Diseño: AulaLista
+# Diseño: Docente Presente
 
 Estado: la fase 3 está desplegada (commit `c68e513`). Verificación reproducible en `docs/VERIFICACION.md`.
 

@@ -21,7 +21,7 @@ const ROUTES = [
   { nav: 'bienestar', re: /^\/bienestar$/, view: renderBienestar, title: 'Mi bienestar' },
 ];
 
-const APP_NAME = 'AulaLista';
+const APP_NAME = 'Docente Presente';
 const root = document.getElementById('app');
 let renderToken = 0;
 let firstRender = true; // en la carga inicial el foco queda al principio (skip-link)
@@ -70,7 +70,7 @@ async function render() {
     setTitle('Página no encontrada');
     root.appendChild(h('div', { class: 'card stack' },
       h('h1', null, 'No encontramos esa página'),
-      h('p', null, 'La dirección no corresponde a ninguna sección de AulaLista.'),
+      h('p', null, 'La dirección no corresponde a ninguna sección de Docente Presente.'),
       h('a', { class: 'btn primary', href: '#/hoy' }, 'Volver a Hoy')));
     focusHeading();
     return;

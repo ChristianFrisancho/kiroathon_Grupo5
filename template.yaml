@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  AulaLista (equipo T005) - Copiloto del docente público. API Gateway HTTP API + Lambda Python 3.12 (API y
+  Docente Presente (equipo T005) - Copiloto del docente público. API Gateway HTTP API + Lambda Python 3.12 (API y
   frontend en el mismo dominio) + Lambda worker de /jobs + DynamoDB + Amazon Bedrock (API Converse).
 
 Parameters:
@@ -70,7 +70,7 @@ Resources:
     Properties:
       CodeUri: .
       Handler: app.handler
-      Description: API de AulaLista y entrega del frontend
+      Description: API de Docente Presente y entrega del frontend
       # API Gateway HTTP corta a los 30 s; la app reserva tiempo para responder (budget.py).
       Timeout: 29
       Environment:

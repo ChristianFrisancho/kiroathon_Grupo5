@@ -42,7 +42,7 @@ class StructureTests(unittest.TestCase):
         stdlib_ok = {"__future__", "json", "re", "os", "sys", "uuid", "copy", "threading", "sqlite3", "typing",
                      "dataclasses", "datetime", "decimal", "fractions", "pathlib", "concurrent", "http",
                      "urllib", "mimetypes", "aulalista", "time", "base64", "hashlib", "unicodedata",
-                     "contextvars"}
+                     "contextvars", "logging"}
         # boto3/botocore solo se importan dentro de funciones (disponibles en el runtime de Lambda).
         aws_lazy = {"boto3", "botocore"}
         for path in (BACK / "aulalista").glob("*.py"):

@@ -15,8 +15,8 @@ export async function renderHoy({ navigate, isCurrent = () => true }) {
       h('p', { class: 'eyebrow' }, 'Copiloto del docente público'),
       h('h1', { id: 'home-title' }, 'Tu próxima clase empieza aquí'),
       h('p', { class: 'lead' },
-        'Transforma un módulo en una sesión para tu grupo, tu tiempo y tus materiales. '
-        + 'Revísala, guárdala y recupérala cuando lo necesites.'),
+        'Convertir el contenido de un curso en una clase para tu grupo, tu tiempo y tus materiales lleva trabajo. '
+        + 'Aquí partes de un módulo, revisas el borrador, lo guardas y lo recuperas cuando lo necesites.'),
       h('div', { class: 'row' },
         h('a', { class: 'btn primary big', href: '#/aula' }, 'Preparar clase'),
         h('a', { class: 'btn', href: '#/portafolio' }, 'Mi portafolio')),

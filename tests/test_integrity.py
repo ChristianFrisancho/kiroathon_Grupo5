@@ -471,12 +471,9 @@ class AiOutputTests(unittest.TestCase):
                 self.assertIn("reintentar", body["error"]["message"])
 
     def test_actividades_sin_contenido_util(self):
-        status, draft = self.generate(lesson(descriptions=["", "ok", "Las parejas conversan y practican.", "Cierre con preguntas de aclaración."]))
-        self.assertEqual(status, 200)
-        self.assertEqual(len(draft["content"]["activities"]), 2)
-        self.assertTrue(any("descartó" in n for n in draft["reviewNotes"]))
-        status, _ = self.generate(lesson(descriptions=["", "", "x", "?"]))
-        self.assertEqual(status, 502)
+        # Una actividad vacía ya no se descarta en silencio: la respuesta entera es inválida (502).
+        status, body = self.generate(lesson(descriptions=["", "ok", "Las parejas conversan y practican.", "Cierre con preguntas de aclaración."]))
+        self.assertEqual((status, body["error"]["code"]), (502, "generation_failed"))
 
     def test_reescalar_nunca_deja_actividades_en_cero(self):
         parts = split_minutes(10, [100, 1, 1, 1, 1])

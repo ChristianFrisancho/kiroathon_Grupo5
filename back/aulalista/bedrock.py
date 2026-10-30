@@ -17,9 +17,12 @@ Errores:
 - Salida ilegible, truncada o sin ninguna referencia válida al módulo: GeneratorError → 502.
 
 Validación de la salida (política conservadora; la pertinencia pedagógica la decide el docente):
+- Primero `model_output.converse_text` exige una respuesta Converse completa (stopReason end_turn/stop_sequence,
+  rol assistant, texto no vacío) y `validate_model_payload` exige la estructura: tipos correctos, campos
+  obligatorios no vacíos, 1-12 actividades, minutos enteros positivos. No se convierte nada con str() ni se
+  rellenan campos: una respuesta defectuosa es GeneratorError (502) y no se guarda nada.
 - Se aceptan solo referencias que existen en el módulo; las inventadas se quitan y se avisa en `reviewNotes`.
 - Si ninguna actividad cita un fragmento real, la sesión no se presenta como sustentada en el módulo: error.
-- Las actividades sin título o con descripción de menos de 15 caracteres se descartan con aviso.
 - Si una descripción menciona un recurso común que el docente no declaró (lista de RESOURCE_WORDS), se avisa
   en `reviewNotes` para que lo revise; no es una garantía semántica.
 - Los minutos se reescalan para sumar exactamente la duración, con 1 minuto como mínimo por actividad.
@@ -29,13 +32,21 @@ Validación de la salida (política conservadora; la pertinencia pedagógica la 
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 import unicodedata
 from typing import Any, Callable, Dict, List, Optional
 
 from . import budget
+from .errors import ApiError
 from .generator import Generator, GeneratorError, LocalSimulatedGenerator, split_minutes
+from .model_output import converse_text, validate_model_payload
+from .validators import validate_lesson_content
+
+# Registro mínimo por llamada (modelo, tiempo, stopReason, id de petición). Nunca prompt, notas ni respuesta.
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = (0.6, 1.5)
@@ -45,7 +56,6 @@ OWN_BUDGET_SECONDS = 24.0      # presupuesto si no hay plazo externo (servidor l
 MIN_ATTEMPT_SECONDS = ATTEMPT_TIMEOUT + CONNECT_TIMEOUT
 LESSON_MAX_TOKENS = 1800
 SUMMARY_MAX_TOKENS = 500
-MIN_DESCRIPTION = 15
 FALLBACK_LABEL = (
     "Respaldo local: Amazon Bedrock no respondió a tiempo y este borrador lo creó la plantilla local. "
     "Puedes reintentar más tarde."
@@ -179,6 +189,7 @@ class BedrockGenerator(Generator):
         for attempt in range(MAX_ATTEMPTS):
             if deadline - self._monotonic() < MIN_ATTEMPT_SECONDS:
                 raise BudgetExhausted()
+            started = time.perf_counter()
             try:
                 response = self.client.converse(
                     modelId=self.model_id,
@@ -187,6 +198,11 @@ class BedrockGenerator(Generator):
                     inferenceConfig={"maxTokens": max_tokens, "temperature": temperature},
                 )
             except Exception as exc:  # noqa: BLE001 - se clasifica abajo
+                logger.info(json.dumps({
+                    "event": "bedrock_converse_failed", "modelId": self.model_id, "attempt": attempt + 1,
+                    "elapsedMs": round((time.perf_counter() - started) * 1000, 2),
+                    "errorCode": _error_code(exc) or type(exc).__name__,
+                }))
                 if _error_code(exc) != "ThrottlingException" or attempt == MAX_ATTEMPTS - 1:
                     raise
                 wait = BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)]
@@ -194,13 +210,14 @@ class BedrockGenerator(Generator):
                     raise
                 self._sleep(wait)
                 continue
-            if response.get("stopReason") == "max_tokens":
-                raise GeneratorError("El modelo devolvió una respuesta incompleta (se cortó por longitud).")
-            parts = response["output"]["message"]["content"]
-            text = "".join(p.get("text", "") for p in parts).strip()
-            if not text:
-                raise GeneratorError("El modelo devolvió una respuesta vacía.")
-            return text
+            metadata = response.get("ResponseMetadata") if isinstance(response, dict) else None
+            logger.info(json.dumps({
+                "event": "bedrock_converse_completed", "modelId": self.model_id, "attempt": attempt + 1,
+                "elapsedMs": round((time.perf_counter() - started) * 1000, 2),
+                "stopReason": response.get("stopReason") if isinstance(response, dict) else None,
+                "bedrockRequestId": (metadata or {}).get("RequestId"),
+            }))
+            return converse_text(response)
         raise BudgetExhausted()  # pragma: no cover
 
     def _call_or_fallback(self, call: Callable[[], Dict[str, Any]], fallback: Callable[[], Dict[str, Any]]):
@@ -245,33 +262,23 @@ class BedrockGenerator(Generator):
         return "\n".join(lines)
 
     def _normalize(self, data: Dict[str, Any], module: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-        """Reparación determinista y verificable antes del validador del servidor (ver docstring del módulo)."""
+        """Normalización controlada de una respuesta YA validada por `validate_model_payload`.
+
+        No convierte tipos ni inventa campos. Solo: filtra referencias inexistentes (con aviso), avisa de
+        recursos no declarados y reescala minutos (≥ 1) si no suman la duración. Materiales y fuentes salen
+        del contexto y del módulo confiables.
+        """
         known = {f["id"] for f in module["fragments"]}
         notes: List[str] = []
-        activities_in = data.get("activities")
-        if not isinstance(activities_in, list) or not activities_in:
-            raise GeneratorError("El modelo no propuso actividades.")
         invented: List[str] = []
         activities: List[Dict[str, Any]] = []
-        for raw in activities_in[:12]:
-            if not isinstance(raw, dict):
-                continue
-            title = str(raw.get("title") or "").strip()
-            description = str(raw.get("description") or "").strip()
-            if not title or len(description) < MIN_DESCRIPTION:
-                notes.append("Se descartó una actividad sin título o sin descripción útil.")
-                continue
-            refs_in = raw.get("references") if isinstance(raw.get("references"), list) else []
-            refs = [r for r in refs_in if isinstance(r, str) and r in known]
-            invented.extend(str(r) for r in refs_in if not (isinstance(r, str) and r in known))
-            minutes = raw.get("minutes")
-            weight = minutes if isinstance(minutes, int) and not isinstance(minutes, bool) and minutes > 0 else 1
+        for index, raw in enumerate(data["activities"], start=1):
+            refs = [r.strip() for r in raw["references"]]
+            invented.extend(r for r in refs if r not in known)
             activities.append({
-                "id": "a%d" % (len(activities) + 1), "title": title[:200], "minutes": weight,
-                "description": description[:2000], "references": sorted(set(refs)),
+                "id": "a%d" % index, "title": raw["title"].strip(), "minutes": raw["minutes"],
+                "description": raw["description"].strip(), "references": sorted({r for r in refs if r in known}),
             })
-        if not activities:
-            raise GeneratorError("El modelo no propuso actividades con contenido útil.")
         if not any(a["references"] for a in activities):
             raise GeneratorError("El borrador no citó ningún fragmento real del módulo, así que no lo presentamos como sustentado en él.")
         if invented:
@@ -294,23 +301,24 @@ class BedrockGenerator(Generator):
             for activity, mins in zip(activities, minutes):
                 activity["minutes"] = mins
             notes.append("Los minutos se ajustaron para sumar %d." % total)
-        result = {
-            "title": str(data.get("title") or module["title"]).strip()[:200],
-            "purpose": str(data.get("purpose") or "").strip()[:2000],
-            "grade": context["grade"],
-            "durationMinutes": total,
-            "materials": list(context["materials"]),
-            "activities": activities,
-            "expectedEvidence": str(data.get("expectedEvidence") or "").strip()[:2000],
+        return {
+            "title": data["title"].strip(), "purpose": data["purpose"].strip(), "grade": context["grade"],
+            "durationMinutes": total, "materials": list(context["materials"]), "activities": activities,
+            "expectedEvidence": data["expectedEvidence"].strip(), "_reviewNotes": notes,
         }
-        if not result["purpose"] or not result["expectedEvidence"]:
-            raise GeneratorError("El modelo no indicó el propósito o la evidencia esperada.")
-        result["_reviewNotes"] = notes
-        return result
 
     def _lesson(self, module, context, experience):
         text = self._converse(SYSTEM_LESSON, self._lesson_prompt(module, context, experience), LESSON_MAX_TOKENS, 0.4)
-        result = self._normalize(extract_json(text), module, context)
+        data = validate_model_payload(extract_json(text))
+        normalized = self._normalize(data, module, context)
+        notes = normalized.pop("_reviewNotes")
+        try:
+            result = validate_lesson_content(normalized, module, context)
+        except ApiError as exc:
+            raise GeneratorError("La respuesta del modelo no cumple las condiciones de la sesión.") from exc
+        if not any(activity["references"] for activity in result["activities"]):
+            raise GeneratorError("El modelo no vinculó la sesión con ningún fragmento del módulo.")
+        result["_reviewNotes"] = notes
         result["_generatedBy"] = self.info()
         return result
 

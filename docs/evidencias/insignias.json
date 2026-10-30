@@ -1,7 +1,7 @@
 {
-  "timestampUtc": "2026-10-30T18:33:54.991634+00:00",
-  "commit": "c68e513612f526a62e4f61998a7a55411c7e2991",
-  "workingTreeDirty": false,
+  "timestampUtc": "2026-10-30T18:43:56.104223+00:00",
+  "commit": "38545d06d94a3dd16cd02225805d057adbd99d29",
+  "workingTreeDirty": true,
   "baseUrl": "https://nxrlbbnerb.execute-api.us-east-1.amazonaws.com",
   "team": "T005",
   "syntheticDataCreated": "1 item y 1 job",
@@ -15,7 +15,7 @@
           "path": "/health",
           "status": 200,
           "contentType": "application/json; charset=utf-8",
-          "elapsedMs": 40.59,
+          "elapsedMs": 36.07,
           "body": {
             "status": "ok",
             "team": "T005"
@@ -26,28 +26,28 @@
     {
       "badge": "Persistencia",
       "passed": true,
-      "nonce": "verificacion-1793385233-2599239d",
+      "nonce": "verificacion-1793385834-4c94f62e",
       "calls": [
         {
           "method": "POST",
           "path": "/items",
           "status": 201,
           "contentType": "application/json; charset=utf-8",
-          "elapsedMs": 111.64,
+          "elapsedMs": 105.84,
           "body": {
-            "id": "item-aff30db668de",
-            "value": "verificacion-1793385233-2599239d"
+            "id": "item-4b99bffaf193",
+            "value": "verificacion-1793385834-4c94f62e"
           }
         },
         {
           "method": "GET",
-          "path": "/items/item-aff30db668de",
+          "path": "/items/item-4b99bffaf193",
           "status": 200,
           "contentType": "application/json; charset=utf-8",
-          "elapsedMs": 39.22,
+          "elapsedMs": 47.66,
           "body": {
-            "id": "item-aff30db668de",
-            "value": "verificacion-1793385233-2599239d"
+            "id": "item-4b99bffaf193",
+            "value": "verificacion-1793385834-4c94f62e"
           }
         },
         {
@@ -55,8 +55,16 @@
           "path": "/items",
           "status": 200,
           "contentType": "application/json; charset=utf-8",
-          "elapsedMs": 45.44,
+          "elapsedMs": 38.16,
           "body": [
+            {
+              "id": "item-4b99bffaf193",
+              "value": "verificacion-1793385834-4c94f62e"
+            },
+            {
+              "id": "item-86297a57984f",
+              "value": "verificacion-1793385580-9044a106"
+            },
             {
               "id": "item-aff30db668de",
               "value": "verificacion-1793385233-2599239d"
@@ -80,33 +88,33 @@
     {
       "badge": "Asíncrono o agente",
       "passed": true,
-      "nonce": "abc-6a51b97f",
-      "expectedOutput": "f79b15a6-cba",
-      "doneAfterSeconds": 1.72,
+      "nonce": "abc-9a55aa83",
+      "expectedOutput": "38aa55a9-cba",
+      "doneAfterSeconds": 1.65,
       "calls": [
         {
           "method": "POST",
           "path": "/jobs",
           "status": 202,
           "contentType": "application/json; charset=utf-8",
-          "elapsedMs": 165.8,
+          "elapsedMs": 102.74,
           "body": {
-            "jobId": "job-12e3210876e6",
+            "jobId": "job-01d0d0077d6d",
             "status": "queued"
           }
         },
         {
           "method": "GET",
-          "path": "/jobs/job-12e3210876e6",
+          "path": "/jobs/job-01d0d0077d6d",
           "status": 200,
           "contentType": "application/json; charset=utf-8",
-          "elapsedMs": 57.39,
+          "elapsedMs": 49.09,
           "body": {
-            "jobId": "job-12e3210876e6",
+            "jobId": "job-01d0d0077d6d",
             "status": "done",
-            "output": "f79b15a6-cba"
+            "output": "38aa55a9-cba"
           },
-          "secondsSincePost": 1.72
+          "secondsSincePost": 1.65
         }
       ]
     }

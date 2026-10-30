@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 from typing import Any, Callable, Dict, Optional
 
 from aulalista import budget
@@ -58,17 +59,43 @@ def get_service() -> Service:
     return _service
 
 
-def _response(status: int, body: bytes, content_type: str, cache: str) -> Dict[str, Any]:
+# La API es pública (contratos de las insignias): se permite leerla desde cualquier origen, sin credenciales.
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type,Accept,X-User-Id",
+    "Access-Control-Max-Age": "600",
+}
+
+
+def _response(status: int, body: bytes, content_type: str, cache: str, cors: bool = False) -> Dict[str, Any]:
     headers = {"Content-Type": content_type, "Cache-Control": cache, **SECURITY_HEADERS}
+    if cors:
+        headers.update(CORS_HEADERS)
     return {"statusCode": status, "headers": headers, "body": body.decode("utf-8"), "isBase64Encoded": False}
+
+
+def _log(method: str, path: str, status: int, headers: Dict[str, Any]) -> None:
+    """Registro mínimo para diagnosticar al verificador: sin cuerpo ni datos personales."""
+    lower = {str(k).lower(): v for k, v in (headers or {}).items()}
+    print(json.dumps({"event": "request", "method": method, "path": path, "status": status,
+                      "origin": lower.get("origin"), "userAgent": (lower.get("user-agent") or "")[:120]}))
 
 
 def handler(event: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     http = (event.get("requestContext") or {}).get("http") or {}
     method = (http.get("method") or event.get("httpMethod") or "GET").upper()
-    path = event.get("rawPath") or event.get("path") or "/"
+    # «//health» (URL base guardada con barra final) es la misma ruta que «/health».
+    path = re.sub(r"/{2,}", "/", event.get("rawPath") or event.get("path") or "/")
+    if len(path) > 1:
+        path = path.rstrip("/") or "/"
     query = event.get("rawQueryString") or ""
     target = path + ("?" + query if query else "")
+    headers = event.get("headers") or {}
+
+    if is_api_path(path) and method == "OPTIONS":  # preflight CORS
+        _log(method, path, 204, headers)
+        return _response(204, b"", "text/plain; charset=utf-8", "no-store", cors=True)
 
     if is_api_path(path):
         remaining = context.get_remaining_time_in_millis() if hasattr(context, "get_remaining_time_in_millis") else None
@@ -76,11 +103,12 @@ def handler(event: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
         try:
             raw = event.get("body") or ""
             raw_bytes = base64.b64decode(raw) if event.get("isBase64Encoded") else raw.encode("utf-8")
-            status, payload = handle_request(get_service(), method, target, event.get("headers") or {}, raw_bytes)
+            status, payload = handle_request(get_service(), method, target, headers, raw_bytes)
         finally:
             budget.set_deadline(None)
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        return _response(status, body, "application/json; charset=utf-8", "no-store")
+        _log(method, path, status, headers)
+        return _response(status, body, "application/json; charset=utf-8", "no-store", cors=True)
 
     if method not in ("GET", "HEAD"):
         return _response(405, b"Method not allowed", "text/plain; charset=utf-8", "no-store")

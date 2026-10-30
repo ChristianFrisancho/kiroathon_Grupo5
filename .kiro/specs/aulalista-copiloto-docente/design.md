@@ -1,6 +1,6 @@
 # Diseño: AulaLista
 
-Estado: la fase 3 (integridad, procedencia, tiempos, worker y frontend) está implementada y probada en local. La URL pública sirve todavía la fase 2.
+Estado: la fase 3 está desplegada (commit `c68e513`). Verificación reproducible en `docs/VERIFICACION.md`.
 
 ## Arquitectura mínima en AWS (template.yaml)
 
@@ -52,16 +52,17 @@ Permisos: `DynamoDBCrudPolicy` sobre la tabla en ambas funciones. `bedrock:Invok
 
 1. El docente confirma el contexto en «Preparar»; el servidor lo valida y, si es inválido, no llama al modelo.
 2. `BedrockGenerator.generate` envía el contexto y los fragmentos M1–M3 dentro de `<modulo>` e `<indicaciones>` (datos, nunca instrucciones).
-3. **Normalización conservadora:**
+3. **Validación de la respuesta** (`model_output.py`): sobre Converse completo y estructura válida, sin conversiones ni relleno; si es defectuosa, 502.
+4. **Normalización conservadora:**
    - Se quitan las referencias inventadas, con aviso.
    - Si ninguna actividad cita el módulo, la respuesta es error 502.
    - Se descartan las actividades sin contenido útil.
    - Se avisa de recursos mencionados que no se declararon.
    - Los minutos se reescalan con un mínimo de 1.
    - Después decide `validate_lesson_content`. Los avisos van en `reviewNotes`.
-4. **Borrador emitido por el servidor:** se guarda con `draftId`, dueño, contenido, huella SHA-256, `generatedBy` y caducidad de 24 h.
-5. **Al guardar** no se llama al modelo. El servidor deriva `generatedBy` del borrador y marca `editedByTeacher` si la huella cambió. Un borrador ajeno, caducado o inexistente se guarda como contenido del docente, con `provenanceNote`.
-6. **Tiempos:** el SDK no reintenta. Cada intento necesita 15 s de margen (12 s de lectura + 3 s de conexión) dentro del plazo de la Lambda menos 2,5 s de reserva. Throttling con margen se reintenta; sin margen, o si el modelo no responde, se usa el respaldo local rotulado. Permisos y validación dan 502.
+5. **Borrador emitido por el servidor:** se guarda con `draftId`, dueño, contenido, huella SHA-256, `generatedBy` y caducidad de 24 h.
+6. **Al guardar** no se llama al modelo. El servidor deriva `generatedBy` del borrador y marca `editedByTeacher` si la huella cambió. Un borrador ajeno, caducado o inexistente se guarda como contenido del docente, con `provenanceNote`.
+7. **Tiempos:** el SDK no reintenta. Cada intento necesita 15 s de margen (12 s de lectura + 3 s de conexión) dentro del plazo de la Lambda menos 2,5 s de reserva. Throttling con margen se reintenta; sin margen, o si el modelo no responde, se usa el respaldo local rotulado. Permisos y validación dan 502.
 
 ## Trabajos asíncronos
 

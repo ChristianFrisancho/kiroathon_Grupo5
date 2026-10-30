@@ -1,0 +1,123 @@
+{
+  "timestampUtc": "2026-10-30T18:33:55.080858+00:00",
+  "commit": "c68e513612f526a62e4f61998a7a55411c7e2991",
+  "workingTreeDirty": true,
+  "baseUrl": "https://nxrlbbnerb.execute-api.us-east-1.amazonaws.com",
+  "test": "deployed-bedrock-smoke",
+  "results": [
+    {
+      "run": 1,
+      "passed": true,
+      "httpStatus": 200,
+      "elapsedMsHttp": 2780.67,
+      "requestIds": {
+        "Apigw-Requestid": "GEhrEi-EoAMEM0Q="
+      },
+      "evidence": {
+        "origin": {
+          "engine": "bedrock",
+          "isBedrock": true,
+          "label": "Generado con Amazon Bedrock (us.amazon.nova-lite-v1:0). Revísalo antes de usarlo.",
+          "modelId": "us.amazon.nova-lite-v1:0"
+        },
+        "title": "Practicando la escucha activa",
+        "activityCount": 5,
+        "totalMinutes": 45,
+        "references": [
+          "M1",
+          "M2",
+          "M3"
+        ],
+        "materials": [
+          "pizarra",
+          "papel",
+          "lápiz"
+        ],
+        "reviewNotes": [
+          "La actividad 5 no cita ningún fragmento del módulo: revísala."
+        ],
+        "humanReviewStillRequired": true
+      }
+    },
+    {
+      "run": 2,
+      "passed": true,
+      "httpStatus": 200,
+      "elapsedMsHttp": 3757.59,
+      "requestIds": {
+        "Apigw-Requestid": "GEhrghvMoAMEMCg="
+      },
+      "evidence": {
+        "origin": {
+          "engine": "bedrock",
+          "isBedrock": true,
+          "label": "Generado con Amazon Bedrock (us.amazon.nova-lite-v1:0). Revísalo antes de usarlo.",
+          "modelId": "us.amazon.nova-lite-v1:0"
+        },
+        "title": "Escucha Activa y Diálogo Respetuoso",
+        "activityCount": 5,
+        "totalMinutes": 45,
+        "references": [
+          "M1",
+          "M2",
+          "M3"
+        ],
+        "materials": [
+          "pizarra",
+          "papel",
+          "lápiz"
+        ],
+        "reviewNotes": [
+          "La actividad 4 no cita ningún fragmento del módulo: revísala.",
+          "La actividad 5 no cita ningún fragmento del módulo: revísala."
+        ],
+        "humanReviewStillRequired": true
+      }
+    },
+    {
+      "run": 3,
+      "passed": true,
+      "httpStatus": 200,
+      "elapsedMsHttp": 2425.79,
+      "requestIds": {
+        "Apigw-Requestid": "GEhsFjTzoAMEYxA="
+      },
+      "evidence": {
+        "origin": {
+          "engine": "bedrock",
+          "isBedrock": true,
+          "label": "Generado con Amazon Bedrock (us.amazon.nova-lite-v1:0). Revísalo antes de usarlo.",
+          "modelId": "us.amazon.nova-lite-v1:0"
+        },
+        "title": "Conversaciones respetuosas",
+        "activityCount": 4,
+        "totalMinutes": 45,
+        "references": [
+          "M1",
+          "M2",
+          "M3"
+        ],
+        "materials": [
+          "pizarra",
+          "papel",
+          "lápiz"
+        ],
+        "reviewNotes": [],
+        "humanReviewStillRequired": true
+      }
+    }
+  ],
+  "limitations": [
+    "No evalúa calidad pedagógica ni impacto educativo.",
+    "No acredita percentiles con una muestra pequeña.",
+    "elapsedMs es el tiempo HTTP completo medido por el script; el tiempo de la llamada a Converse está en los logs (bedrock_converse_completed).",
+    "La procedencia se contrasta con el código (bedrock.py) y con los logs de CloudWatch."
+  ],
+  "allPassed": true,
+  "latencySummaryHttp": {
+    "samples": 3,
+    "minMs": 2425.79,
+    "maxMs": 3757.59,
+    "meanMs": 2988.02
+  }
+}

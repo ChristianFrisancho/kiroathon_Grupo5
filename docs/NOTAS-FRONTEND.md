@@ -2,7 +2,7 @@
 
 URL base desplegada (sin barra final): https://nxrlbbnerb.execute-api.us-east-1.amazonaws.com
 
-**Estado de esa URL:** sirve la versión desplegada antes de las correcciones de integridad, worker y frontend descritas abajo. Esas correcciones están implementadas y probadas en local, pero **no desplegadas**.
+**Estado de esa URL:** sirve el commit `c68e513`, con las correcciones descritas abajo (verificado en modo lectura el 30-oct; ver docs/VERIFICACION.md).
 
 Cada línea con prefijo se valida en `tests/test_front_static.py`: máximo 240 caracteres, sin correos ni secuencias de 7 o más dígitos, y con etiquetas que existen en la interfaz.
 

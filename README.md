@@ -6,16 +6,18 @@ Un docente de colegio público necesita convertir el contenido de un curso en un
 
 **Demo desplegada:** https://nxrlbbnerb.execute-api.us-east-1.amazonaws.com
 
-## Estado
+## Estado (30-oct-2026, commit `c68e513`, desplegado en el stack `aulalista-t005`)
 
-| Elemento | Implementado y probado en local | Desplegado y verificado en la URL pública |
+| Elemento | Probado en local | Desplegado y verificado en la URL pública |
 |---|---|---|
-| Recorrido módulo → borrador → revisión → portafolio → registro | Sí (16 pruebas en Chromium) | Versión anterior (fase 2) |
-| Amazon Bedrock (Converse, `us.amazon.nova-lite-v1:0`) | Sí, con cliente simulado | Sí, generación real verificada con la fase 2 |
-| Guardados atómicos, 409 ante conflicto, procedencia verificada por el servidor, claves de operación | Sí | **No desplegado** |
-| Worker Lambda de `/jobs` (GET solo lee) | Sí, worker probado sin AWS | **No desplegado**: la URL usa todavía resolución al leer |
-| Contratos `/health`, `/items`, `/jobs` | Sí | Sí (fase 2), con curl |
+| Recorrido módulo → borrador → revisión → portafolio → registro | Sí (16 pruebas en Chromium) | Frontend verificado en modo lectura (consola limpia, 320/1440 px) |
+| Amazon Bedrock (Converse, `us.amazon.nova-lite-v1:0`) | Sí, con cliente simulado y respuestas malformadas | Sí: `scripts/smoke_genai.py` 3/3, de 2,4 a 3,8 s HTTP, corroborado en CloudWatch |
+| Guardados atómicos, 409, procedencia verificada por el servidor, claves de operación | Sí | Desplegado (sin pruebas de escritura destructivas sobre la demo) |
+| Worker Lambda de `/jobs` | Sí | Sí: `done` a 1,72 s, invocación del worker visible en CloudWatch |
+| Contratos `/health`, `/items`, `/jobs` | Sí | Sí: `scripts/verify_badges.py` (contrato verificado por nosotros; la insignia la otorga el portal) |
 | Voz con Transcribe | No implementada (opcional) | — |
+
+**Evidencia:** [docs/VERIFICACION.md](docs/VERIFICACION.md) (comandos exactos, respuestas esperadas y resultados reales), [docs/evidencias/insignias.json](docs/evidencias/insignias.json), [docs/evidencias/genai-real.json](docs/evidencias/genai-real.json), [scripts/verify_badges.py](scripts/verify_badges.py), [scripts/smoke_genai.py](scripts/smoke_genai.py), pruebas de respuestas malformadas del modelo en [tests/test_integrity.py](tests/test_integrity.py) (`AiOutputTests`) y [tests/test_app.py](tests/test_app.py) (`BedrockFlowTests`: 502 sin guardado), navegador en [tests/test_browser.py](tests/test_browser.py) y capturas en [docs/capturas/](docs/capturas/).
 
 No se entrevistó a docentes ni se midió ahorro de tiempo o mejora educativa. Todos los datos son simulados y no hay integración con APRENDE PERÚ.
 
@@ -33,6 +35,7 @@ No se entrevistó a docentes ni se midió ahorro de tiempo o mejora educativa. T
 - **Prompts de sistema:** rol (docente de colegio público), reglas, límites de longitud como objetivos (400 caracteres por actividad, 120 palabras por resumen), tono y salida JSON. El módulo y las indicaciones van entre etiquetas como datos, nunca como instrucciones.
 - **Entrada:** se valida antes de llamar al modelo; si es inválida, el modelo no se invoca.
 - **Tiempos:** el plazo sale de la Lambda (`get_remaining_time_in_millis`) menos una reserva. El SDK no reintenta; ThrottlingException se reintenta solo si queda margen; sin margen, o si el modelo no responde, se entrega un **respaldo local rotulado**. Permisos, validación o una salida truncada responden **502**.
+- **Respuesta del modelo** (`back/aulalista/model_output.py`): se exige un sobre Converse completo (`stopReason` end_turn, rol assistant, texto) y una estructura válida (tipos, campos obligatorios, 1–12 actividades, minutos enteros). No se convierte ni se rellena nada; si es defectuosa, responde 502 `generation_failed` y no se guarda nada. Cada llamada deja un log `bedrock_converse_completed` con modelo, tiempo, stopReason e id de petición, sin contenido.
 - **Salida:**
   - Se quitan las referencias inventadas, con aviso. Si ninguna actividad cita el módulo, es error.
   - Se avisa de recursos mencionados que no se declararon, para revisión humana.

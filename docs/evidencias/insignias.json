@@ -1,0 +1,116 @@
+{
+  "timestampUtc": "2026-10-30T18:33:54.991634+00:00",
+  "commit": "c68e513612f526a62e4f61998a7a55411c7e2991",
+  "workingTreeDirty": false,
+  "baseUrl": "https://nxrlbbnerb.execute-api.us-east-1.amazonaws.com",
+  "team": "T005",
+  "syntheticDataCreated": "1 item y 1 job",
+  "checks": [
+    {
+      "badge": "API viva",
+      "passed": true,
+      "calls": [
+        {
+          "method": "GET",
+          "path": "/health",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8",
+          "elapsedMs": 40.59,
+          "body": {
+            "status": "ok",
+            "team": "T005"
+          }
+        }
+      ]
+    },
+    {
+      "badge": "Persistencia",
+      "passed": true,
+      "nonce": "verificacion-1793385233-2599239d",
+      "calls": [
+        {
+          "method": "POST",
+          "path": "/items",
+          "status": 201,
+          "contentType": "application/json; charset=utf-8",
+          "elapsedMs": 111.64,
+          "body": {
+            "id": "item-aff30db668de",
+            "value": "verificacion-1793385233-2599239d"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/items/item-aff30db668de",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8",
+          "elapsedMs": 39.22,
+          "body": {
+            "id": "item-aff30db668de",
+            "value": "verificacion-1793385233-2599239d"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/items",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8",
+          "elapsedMs": 45.44,
+          "body": [
+            {
+              "id": "item-aff30db668de",
+              "value": "verificacion-1793385233-2599239d"
+            },
+            {
+              "id": "item-b0fc8f470e03",
+              "value": "audit-item-98ab5361b2d14237aa3af6ccc0c71815"
+            },
+            {
+              "id": "item-12130e522738",
+              "value": "vvcAeN2kch9l"
+            },
+            {
+              "id": "item-0c02e304cef4",
+              "value": "nonce-626620298"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "badge": "Asíncrono o agente",
+      "passed": true,
+      "nonce": "abc-6a51b97f",
+      "expectedOutput": "f79b15a6-cba",
+      "doneAfterSeconds": 1.72,
+      "calls": [
+        {
+          "method": "POST",
+          "path": "/jobs",
+          "status": 202,
+          "contentType": "application/json; charset=utf-8",
+          "elapsedMs": 165.8,
+          "body": {
+            "jobId": "job-12e3210876e6",
+            "status": "queued"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/jobs/job-12e3210876e6",
+          "status": 200,
+          "contentType": "application/json; charset=utf-8",
+          "elapsedMs": 57.39,
+          "body": {
+            "jobId": "job-12e3210876e6",
+            "status": "done",
+            "output": "f79b15a6-cba"
+          },
+          "secondsSincePost": 1.72
+        }
+      ]
+    }
+  ],
+  "allPassed": true,
+  "note": "Contrato verificado por nosotros; la insignia la otorga el portal con «Verificar ahora»."
+}

@@ -1,6 +1,6 @@
 # Plan de tareas: AulaLista
 
-En orden de ejecución. Estados: **[x] probado en local**, **desplegado** y **verificado públicamente** se indican aparte. Nada de la fase 3 está desplegado.
+En orden de ejecución. Estados: **[x] probado en local**, **desplegado** y **verificado públicamente** se indican aparte. La fase 3 está desplegada desde el commit `c68e513` (ver docs/VERIFICACION.md).
 
 ## Fase 1: backend y frontend locales
 
@@ -20,7 +20,7 @@ En orden de ejecución. Estados: **[x] probado en local**, **desplegado** y **ve
 - [x] 11. `template.yaml`, adaptador `back/app.py`, stack `aulalista-t005` en us-east-1 con `TeamId=T005`. _Req: R9_
 - [x] 12. Verificación pública con curl: GET / 200 text/html sin redirección; /health; /items; /jobs; borrador real de Bedrock. _Req: R7_
 
-## Fase 3: integridad, procedencia, tiempos, worker y frontend (probada en local, NO desplegada)
+## Fase 3: integridad, procedencia, tiempos, worker y frontend
 
 - [x] 13. Versiones atómicas y condicionadas a `parentVersionId` en SQLite (UPDATE … WHERE current_version_id) y DynamoDB (TransactWriteItems con `#doc = :expected` y marcador `VNUM#`); 409 `version_conflict`. Prueba: `tests/test_integrity.py::VersionConcurrencyTests` (incluye carrera real con 8 hilos y carrera entre lectura y transacción). _Req: R3.3, R4.1_
 - [x] 14. Sin versiones huérfanas ni restauración de la vigente al actualizar fechas. Prueba: `PartialWriteTests`. _Req: R4.1_
@@ -32,12 +32,13 @@ En orden de ejecución. Estados: **[x] probado en local**, **desplegado** y **ve
 - [x] 20. Validación de la salida de IA (referencias mínimas, avisos de recursos no declarados, minutos ≥ 1, salidas truncadas). Prueba: `AiOutputTests`. _Req: R2.3_
 - [x] 21. Frontend: portada independiente de la API, cliente HTTP con tiempo máximo, editor sin dobles guardados, conflicto 409 recuperable, versión explícita en registros, formularios conservados, almacenamiento bloqueado. Prueba: `tests/test_browser.py` (16 pruebas en Chromium). _Req: R6, R8_
 - [x] 22. Empaquetador validado (directorio temporal, validación de handlers y artefactos, reemplazo final) y template con permisos específicos; `sam validate --lint` pasa. Prueba: `tests/test_packaging.py`. _Req: R9_
-- [ ] 23. Desplegar la fase 3 y repetir la verificación pública (decisión del equipo).
+- [x] 23. Desplegar la fase 3 (commit `c68e513`) y repetir la verificación pública: `scripts/verify_badges.py` y `scripts/smoke_genai.py --runs 3`, con resultados en `docs/evidencias/` y resumen en `docs/VERIFICACION.md`.
+- [x] 24. Validación del sobre Converse y de la estructura de la respuesta del modelo antes de normalizar (`model_output.py`), sin conversiones ni relleno; log mínimo `bedrock_converse_completed` corroborado en CloudWatch.
 
 ## Pendientes
 
-- [ ] 24. Pegar ApiUrl en Perfil del equipo del portal y pulsar «Verificar ahora» en cada insignia (lo hace el equipo).
-- [ ] 25. Registrar el frontend con la nota y el texto GenAI de `docs/NOTAS-FRONTEND.md`.
-- [ ] 26. Probar el recorrido con una persona ajena al código y con un lector de pantalla.
-- [ ] 27. Opcional: Transcribe como voz a texto corregible antes de generar.
-- [ ] 28. Documento (PDF o PPTX) y guion del pitch coherentes con lo desplegado.
+- [ ] 25. Pegar ApiUrl en Perfil del equipo del portal y pulsar «Verificar ahora» en cada insignia (lo hace el equipo).
+- [ ] 26. Registrar el frontend con la nota y el texto GenAI de `docs/NOTAS-FRONTEND.md`.
+- [ ] 27. Probar el recorrido con una persona ajena al código y con un lector de pantalla.
+- [ ] 28. Opcional: Transcribe como voz a texto corregible antes de generar.
+- [ ] 29. Documento (PDF o PPTX) y guion del pitch coherentes con lo desplegado.

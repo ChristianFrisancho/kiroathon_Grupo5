@@ -25,6 +25,7 @@ class Settings:
     table_name: str = ""
     model_id: str = DEFAULT_MODEL_ID
     job_mode: str = "thread"  # "thread" (servidor local) | "lambda" (worker Lambda asíncrono)
+    mock_data: bool = False   # siembra los datos simulados de matemática (mockdata/); activo en la demo
 
 
 def load_settings(env=None) -> Settings:
@@ -41,4 +42,5 @@ def load_settings(env=None) -> Settings:
         table_name=env.get("TABLE_NAME", ""),
         model_id=env.get("MODEL_ID", DEFAULT_MODEL_ID),
         job_mode=env.get("AULALISTA_JOB_MODE", "thread"),
+        mock_data=env.get("AULALISTA_MOCK_DATA", "true").lower() != "false",
     )

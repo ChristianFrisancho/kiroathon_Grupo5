@@ -83,6 +83,7 @@ Resources:
           AULALISTA_GENERATOR: bedrock
           AULALISTA_JOB_MODE: lambda
           AULALISTA_DEMO_MODE: "true"
+          AULALISTA_MOCK_DATA: "true"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ItemsTable

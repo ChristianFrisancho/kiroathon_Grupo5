@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
-from . import scoring, seed
+from . import mockdata, scoring, seed
 from .config import Settings
 from .errors import AlreadyExists, ApiError, VersionConflict, version_conflict
 from .generator import Generator, GeneratorError
@@ -44,7 +44,18 @@ def utc_now() -> str:
 
 
 def user_label(user_id: str) -> str:
-    return seed.USERS.get(user_id, "Docente (%s)" % user_id)
+    return seed.USERS.get(user_id) or mockdata.users().get(user_id) or "Docente (%s)" % user_id
+
+
+def _base_demo_experience() -> Dict[str, Any]:
+    """La experiencia de escucha activa de seed.py en el mismo formato que los datos simulados."""
+    exp = dict(seed.SEED_EXPERIENCE)
+    exp["createdAt"] = None
+    exp["ratings"] = [{"reviewerId": r, "values": list(v), "context": c, "whatToKeep": "", "whatToChange": "",
+                       "id": "rt-seed-%s" % r} for r, v, c in seed.SEED_EXPERIENCE["ratings"]]
+    exp["comments"] = [{"id": "cm-seed-1", "authorId": "u-sim-2", "createdAt": "2026-10-30T10:00:00.000+00:00",
+                        "text": "Yo probaría mostrar primero una demostración breve con dos voluntarios."}]
+    return exp
 
 
 def content_digest(value: Any) -> str:
@@ -66,6 +77,13 @@ class Service:
         self.dispatcher = dispatcher
         self._jobs = (ThreadPoolExecutor(max_workers=2, thread_name_prefix="aulalista-job")
                       if settings.job_mode == "thread" else None)
+        # Módulos y experiencias de demostración: los de seed.py siempre; los de mockdata/ si está activo.
+        self.modules: Dict[str, Dict[str, Any]] = dict(seed.MODULES)
+        self.demo_experiences: List[Dict[str, Any]] = [_base_demo_experience()]
+        if getattr(settings, "mock_data", False):
+            mock = mockdata.load()
+            self.modules.update(mock["modules"])
+            self.demo_experiences.extend(mock["experiences"])
         if hasattr(repo, "migrate_legacy"):
             repo.migrate_legacy()
         self.seed_demo_data()
@@ -79,7 +97,11 @@ class Service:
     # Datos simulados (ids fijos: sembrar dos veces no duplica)
     # ------------------------------------------------------------------
     def seed_demo_data(self) -> None:
-        exp = seed.SEED_EXPERIENCE
+        for exp in self.demo_experiences:
+            self._seed_experience(exp)
+
+    def _seed_experience(self, exp: Dict[str, Any]) -> None:
+        """Siembra una experiencia simulada con sus valoraciones y comentarios (ids fijos: idempotente)."""
         if not self.repo.get_experience(exp["id"]):
             module = self.get_module(exp["context"]["moduleId"])
             content = validate_lesson_content(exp["content"], module, exp["context"])
@@ -87,27 +109,30 @@ class Service:
                 self.repo.add_experience({
                     "id": exp["id"], "authorId": exp["authorId"], "sourceSessionId": None, "sourceVersionId": None,
                     "title": exp["title"], "purpose": exp["purpose"], "grade": exp["grade"],
-                    "materials": exp["materials"], "description": exp["description"],
+                    "materials": exp["context"]["materials"], "description": exp["description"],
                     "observation": exp["observation"], "improvement": exp["improvement"],
-                    "context": exp["context"], "content": content, "isSimulated": True, "createdAt": self.clock(),
+                    "context": exp["context"], "content": content, "isSimulated": True,
+                    "createdAt": exp.get("createdAt") or self.clock(),
                 })
             except AlreadyExists:
                 pass
         if self.repo.list_ratings(exp["id"]):
             return
-        now = "2026-10-30T10:00:00.000+00:00"
-        for reviewer, values, context in exp["ratings"]:
+        stamp = exp.get("createdAt") or "2026-10-30T10:00:00.000+00:00"
+        for rating in exp["ratings"]:
+            values = rating["values"]
             self.repo.upsert_rating({
-                "id": "rt-seed-%s" % reviewer, "versionId": exp["id"], "reviewerId": reviewer,
-                "clarity": values[0], "feasibility": values[1], "coherence": values[2],
-                "observation": values[3], "context": context, "whatToKeep": "", "whatToChange": "",
-                "isSimulated": True, "createdAt": now, "updatedAt": now,
+                "id": rating.get("id") or "rt-mock-%s-%s" % (exp["id"], rating["reviewerId"]),
+                "versionId": exp["id"], "reviewerId": rating["reviewerId"],
+                "clarity": values[0], "feasibility": values[1], "coherence": values[2], "observation": values[3],
+                "context": rating["context"], "whatToKeep": rating.get("whatToKeep", ""),
+                "whatToChange": rating.get("whatToChange", ""), "isSimulated": True,
+                "createdAt": stamp, "updatedAt": stamp,
             })
-        self.repo.add_comment({
-            "id": "cm-seed-1", "versionId": exp["id"], "authorId": "u-sim-2",
-            "text": "Yo probaría mostrar primero una demostración breve con dos voluntarios.",
-            "isSimulated": True, "createdAt": now,
-        })
+        for comment in exp.get("comments", []):
+            self.repo.add_comment({"id": comment["id"], "versionId": exp["id"], "authorId": comment["authorId"],
+                                   "text": comment["text"], "isSimulated": True,
+                                   "createdAt": comment.get("createdAt") or stamp})
 
     # ------------------------------------------------------------------
     # Salud y portada
@@ -131,14 +156,17 @@ class Service:
     # Mi aprendizaje
     # ------------------------------------------------------------------
     def list_modules(self) -> List[Dict[str, Any]]:
-        return [self._module_summary(m) for m in seed.MODULES.values()]
+        return [self._module_summary(m) for m in self.modules.values()]
 
     @staticmethod
     def _module_summary(module: Dict[str, Any]) -> Dict[str, Any]:
-        return {k: module[k] for k in ("id", "version", "title", "sourceLabel", "isSimulated")}
+        summary = {k: module[k] for k in ("id", "version", "title", "sourceLabel", "isSimulated")}
+        if module.get("area"):
+            summary["area"] = module["area"]
+        return summary
 
     def get_module(self, module_id: Any) -> Dict[str, Any]:
-        module = seed.MODULES.get(module_id) if isinstance(module_id, str) else None
+        module = self.modules.get(module_id) if isinstance(module_id, str) else None
         if module is None:
             raise ApiError(404, "module_not_found", "No encontramos ese módulo.")
         return deep_copy(module)

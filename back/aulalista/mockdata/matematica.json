@@ -1,0 +1,178 @@
+{
+  "_aviso": "Datos simulados de demostración. Docentes ficticios, sin datos personales reales. No es currículo oficial ni un curso de APRENDE PERÚ.",
+  "users": {
+    "u-sim-mat-1": "Docente simulada de matemática · primaria",
+    "u-sim-mat-2": "Docente simulado de matemática · secundaria",
+    "u-sim-mat-3": "Docente simulada · aula multigrado",
+    "u-sim-mat-4": "Docente simulado · cuarto de primaria"
+  },
+  "modules": [
+    {
+      "id": "mod-geometria-perimetro-area",
+      "version": "1.0",
+      "title": "Perímetro y área de figuras planas",
+      "area": "Matemática · Geometría",
+      "sourceLabel": "Módulo simulado de ejemplo (geometría). No es currículo oficial ni un curso identificado de APRENDE PERÚ.",
+      "isSimulated": true,
+      "fragments": [
+        {"id": "G1", "text": "El perímetro es la longitud del contorno de una figura. Se obtiene sumando la medida de todos sus lados."},
+        {"id": "G2", "text": "El área mide la superficie que ocupa una figura. En un rectángulo se calcula multiplicando la base por la altura."},
+        {"id": "G3", "text": "Medir con unidades no convencionales, como pasos o palmos, ayuda a comprender por qué se necesitan unidades comunes como el metro."}
+      ]
+    },
+    {
+      "id": "mod-algebra-ecuaciones",
+      "version": "1.0",
+      "title": "Ecuaciones de primer grado con una incógnita",
+      "area": "Matemática · Álgebra",
+      "sourceLabel": "Módulo simulado de ejemplo (álgebra). No es currículo oficial ni un curso identificado de APRENDE PERÚ.",
+      "isSimulated": true,
+      "fragments": [
+        {"id": "A1", "text": "Una ecuación es una igualdad con un valor desconocido. Resolverla es encontrar el valor que hace verdadera la igualdad."},
+        {"id": "A2", "text": "Una balanza en equilibrio representa una ecuación: si se quita o se agrega lo mismo en ambos lados, el equilibrio se mantiene."},
+        {"id": "A3", "text": "Para comprobar una solución se reemplaza la incógnita por el valor encontrado y se verifica que ambos lados sean iguales."}
+      ]
+    },
+    {
+      "id": "mod-fracciones-equivalentes",
+      "version": "1.0",
+      "title": "Fracciones equivalentes",
+      "area": "Matemática · Números",
+      "sourceLabel": "Módulo simulado de ejemplo (fracciones). No es currículo oficial ni un curso identificado de APRENDE PERÚ.",
+      "isSimulated": true,
+      "fragments": [
+        {"id": "F1", "text": "Dos fracciones son equivalentes si representan la misma parte de un entero, aunque se escriban con números distintos."},
+        {"id": "F2", "text": "Al multiplicar o dividir el numerador y el denominador por el mismo número se obtiene una fracción equivalente."},
+        {"id": "F3", "text": "Doblar una hoja de papel en partes iguales permite ver que, por ejemplo, 1/2 y 2/4 cubren la misma superficie."}
+      ]
+    }
+  ],
+  "experiences": [
+    {
+      "id": "exp-sim-geometria-pasos",
+      "authorId": "u-sim-mat-1",
+      "createdAt": "2026-10-28T15:00:00.000+00:00",
+      "title": "Midiendo el aula con pasos y metros",
+      "purpose": "Comprender perímetro y área midiendo el propio salón, primero con pasos y luego con la cinta métrica.",
+      "grade": "Quinto de primaria",
+      "description": "Grupos de cuatro miden el contorno del aula con pasos, comparan resultados y luego usan la cinta métrica. Cierran calculando el área de un rectángulo en papel cuadriculado.",
+      "observation": "Los grupos se sorprendieron al ver que sus pasos daban medidas distintas; eso abrió la conversación sobre unidades comunes. El cálculo de área tomó más tiempo del previsto.",
+      "improvement": "Preparar rectángulos ya dibujados en el papel cuadriculado para dedicar más tiempo a comparar perímetro y área.",
+      "context": {"moduleId": "mod-geometria-perimetro-area", "moduleVersion": "1.0", "grade": "Quinto de primaria", "durationMinutes": 60,
+                  "materials": ["cinta métrica", "papel cuadriculado", "lápiz", "pizarra"], "notes": ""},
+      "content": {
+        "title": "Midiendo el aula con pasos y metros",
+        "purpose": "Comprender perímetro y área midiendo el propio salón, primero con pasos y luego con la cinta métrica.",
+        "grade": "Quinto de primaria",
+        "durationMinutes": 60,
+        "materials": ["cinta métrica", "papel cuadriculado", "lápiz", "pizarra"],
+        "activities": [
+          {"id": "a1", "title": "Medir el aula con pasos", "minutes": 15, "references": ["G1", "G3"],
+           "description": "Cada grupo recorre el contorno del aula contando pasos y anota el total en la pizarra."},
+          {"id": "a2", "title": "¿Por qué no coinciden los pasos?", "minutes": 10, "references": ["G3"],
+           "description": "Comparan los totales de los grupos y discuten por qué hace falta una unidad común."},
+          {"id": "a3", "title": "Perímetro con cinta métrica", "minutes": 15, "references": ["G1"],
+           "description": "Miden cada lado con la cinta métrica y suman las medidas para obtener el perímetro."},
+          {"id": "a4", "title": "Área en papel cuadriculado", "minutes": 15, "references": ["G2"],
+           "description": "Dibujan rectángulos, cuentan cuadraditos y comprueban que el área es base por altura."},
+          {"id": "a5", "title": "Cierre: comparar resultados", "minutes": 5, "references": ["G1", "G2"],
+           "description": "Cada grupo explica con sus palabras la diferencia entre perímetro y área."}
+        ],
+        "expectedEvidence": "Cada grupo calcula el perímetro del aula y el área de un rectángulo, y explica la diferencia entre ambas medidas."
+      },
+      "ratings": [
+        {"reviewerId": "u-sim-mat-2", "values": [5, 4, 5, 4], "context": "Sexto de primaria · cinta métrica y papel",
+         "whatToKeep": "Empezar con pasos genera mucha discusión.", "whatToChange": "Dar más tiempo al cálculo de área."},
+        {"reviewerId": "u-sim-mat-3", "values": [4, 3, 5, 4], "context": "Aula multigrado · sin cinta métrica, con pita",
+         "whatToKeep": "La comparación entre grupos.", "whatToChange": "Con pita en lugar de cinta se necesita una actividad previa."},
+        {"reviewerId": "u-sim-mat-4", "values": [5, 4, 4, null], "context": "Cuarto de primaria · patio",
+         "whatToKeep": "Medir fuera del aula.", "whatToChange": ""}
+      ],
+      "comments": [
+        {"id": "cm-mock-geo-1", "authorId": "u-sim-mat-2", "createdAt": "2026-10-29T13:00:00.000+00:00",
+         "text": "Podría añadirse una estimación antes de medir para comparar con el resultado real."}
+      ]
+    },
+    {
+      "id": "exp-sim-balanza-ecuaciones",
+      "authorId": "u-sim-mat-2",
+      "createdAt": "2026-10-28T16:00:00.000+00:00",
+      "title": "La balanza de las ecuaciones",
+      "purpose": "Resolver ecuaciones de primer grado representándolas como una balanza en equilibrio.",
+      "grade": "Primero de secundaria",
+      "description": "Se dibuja una balanza en la pizarra y se representan ecuaciones con tarjetas. Las parejas quitan o agregan lo mismo en ambos lados hasta despejar la incógnita y luego comprueban la solución.",
+      "observation": "La imagen de la balanza ayudó a quienes se confundían al pasar términos de un lado a otro. Algunas parejas olvidaron comprobar la solución al final.",
+      "improvement": "Incluir la comprobación como un paso obligatorio de la tarjeta antes de anotar la respuesta.",
+      "context": {"moduleId": "mod-algebra-ecuaciones", "moduleVersion": "1.0", "grade": "Primero de secundaria", "durationMinutes": 45,
+                  "materials": ["pizarra", "tarjetas de papel", "lápiz"], "notes": ""},
+      "content": {
+        "title": "La balanza de las ecuaciones",
+        "purpose": "Resolver ecuaciones de primer grado representándolas como una balanza en equilibrio.",
+        "grade": "Primero de secundaria",
+        "durationMinutes": 45,
+        "materials": ["pizarra", "tarjetas de papel", "lápiz"],
+        "activities": [
+          {"id": "a1", "title": "La balanza en la pizarra", "minutes": 10, "references": ["A1", "A2"],
+           "description": "La docente dibuja una balanza y representa la ecuación x + 3 = 7 con tarjetas en cada platillo."},
+          {"id": "a2", "title": "Quitar lo mismo en ambos lados", "minutes": 15, "references": ["A2"],
+           "description": "El grupo propone qué quitar de ambos platillos para dejar sola la incógnita sin romper el equilibrio."},
+          {"id": "a3", "title": "Resolver en parejas", "minutes": 12, "references": ["A1", "A2"],
+           "description": "Cada pareja resuelve tres ecuaciones con sus tarjetas y explica cada paso a la otra persona."},
+          {"id": "a4", "title": "Comprobar la solución", "minutes": 8, "references": ["A3"],
+           "description": "Reemplazan la incógnita por el valor encontrado y verifican que ambos lados den lo mismo."}
+        ],
+        "expectedEvidence": "Las parejas resuelven ecuaciones de primer grado y comprueban la solución reemplazando la incógnita."
+      },
+      "ratings": [
+        {"reviewerId": "u-sim-mat-1", "values": [4, 5, 5, 4], "context": "Sexto de primaria · pizarra y tarjetas",
+         "whatToKeep": "La metáfora de la balanza.", "whatToChange": "Empezar con ecuaciones aún más simples."},
+        {"reviewerId": "u-sim-mat-3", "values": [5, 5, 4, 5], "context": "Aula multigrado · pizarra",
+         "whatToKeep": "Las tarjetas permiten que todos participen.", "whatToChange": ""},
+        {"reviewerId": "u-sim-mat-4", "values": [4, 4, 4, 4], "context": "Primero de secundaria · 40 minutos",
+         "whatToKeep": "El paso de comprobación.", "whatToChange": "Con 40 minutos hay que quitar una ecuación."}
+      ],
+      "comments": [
+        {"id": "cm-mock-alg-1", "authorId": "u-sim-mat-1", "createdAt": "2026-10-29T14:00:00.000+00:00",
+         "text": "Una balanza real hecha con una regla y dos vasos podría reforzar la idea."}
+      ]
+    },
+    {
+      "id": "exp-sim-fracciones-papel",
+      "authorId": "u-sim-mat-4",
+      "createdAt": "2026-10-28T17:00:00.000+00:00",
+      "title": "Doblando papel: fracciones equivalentes",
+      "purpose": "Descubrir fracciones equivalentes doblando y pintando hojas de papel.",
+      "grade": "Cuarto de primaria",
+      "description": "Cada estudiante dobla una hoja en mitades, cuartos y octavos, pinta partes y compara superficies. Después se formaliza la regla de multiplicar numerador y denominador.",
+      "observation": "Ver que 1/2 y 2/4 cubrían lo mismo convenció a casi todo el grupo. La regla de multiplicar se entendió mejor después de doblar.",
+      "improvement": "Agregar tiras de papel para quienes tienen dificultad al doblar en octavos.",
+      "context": {"moduleId": "mod-fracciones-equivalentes", "moduleVersion": "1.0", "grade": "Cuarto de primaria", "durationMinutes": 40,
+                  "materials": ["hojas de papel", "colores", "pizarra"], "notes": ""},
+      "content": {
+        "title": "Doblando papel: fracciones equivalentes",
+        "purpose": "Descubrir fracciones equivalentes doblando y pintando hojas de papel.",
+        "grade": "Cuarto de primaria",
+        "durationMinutes": 40,
+        "materials": ["hojas de papel", "colores", "pizarra"],
+        "activities": [
+          {"id": "a1", "title": "Doblar en mitades y cuartos", "minutes": 10, "references": ["F3"],
+           "description": "Cada estudiante dobla una hoja por la mitad y luego otra vez, y marca las partes iguales."},
+          {"id": "a2", "title": "Pintar y comparar", "minutes": 12, "references": ["F1", "F3"],
+           "description": "Pintan 1/2 de una hoja y 2/4 de otra, las superponen y comparan si cubren lo mismo."},
+          {"id": "a3", "title": "Multiplicar arriba y abajo", "minutes": 12, "references": ["F2"],
+           "description": "En la pizarra se descubre la regla: multiplicar numerador y denominador por el mismo número."},
+          {"id": "a4", "title": "Juego de parejas equivalentes", "minutes": 6, "references": ["F1", "F2"],
+           "description": "En parejas, una persona dice una fracción y la otra propone una equivalente."}
+        ],
+        "expectedEvidence": "Cada estudiante muestra con su hoja doblada dos fracciones equivalentes y explica por qué lo son."
+      },
+      "ratings": [
+        {"reviewerId": "u-sim-mat-1", "values": [5, 5, 4, 5], "context": "Tercero de primaria · hojas recicladas",
+         "whatToKeep": "Doblar antes de dar la regla.", "whatToChange": ""},
+        {"reviewerId": "u-sim-mat-2", "values": [3, 4, 4, null], "context": "Quinto de primaria · sin colores",
+         "whatToKeep": "La superposición de hojas.", "whatToChange": "Sin colores se puede sombrear con lápiz."}
+      ],
+      "comments": []
+    }
+  ]
+}

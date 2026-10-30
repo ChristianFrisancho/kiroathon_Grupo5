@@ -21,6 +21,15 @@ Un docente de colegio público necesita convertir el contenido de un curso en un
 
 No se entrevistó a docentes ni se midió ahorro de tiempo o mejora educativa. Todos los datos son simulados y no hay integración con APRENDE PERÚ.
 
+## Datos simulados de demostración
+
+`back/aulalista/mockdata/matematica.json` añade, separados del código de negocio:
+- Tres módulos de matemática: perímetro y área (geometría), ecuaciones de primer grado (álgebra) y fracciones equivalentes.
+- Cuatro docentes ficticios, rotulados «simulado/a».
+- Tres experiencias compartidas en Mi red, con valoraciones (completas y parciales) y comentarios.
+
+Se siembran de forma idempotente si `AULALISTA_MOCK_DATA` vale `true` (por defecto, también en `template.yaml`). El portafolio del docente no se toca. Las pruebas están en `tests/test_mock_data.py`.
+
 ## Qué hace
 
 - **Hoy / Mi tiempo:** «Preparar clase», «Mi portafolio», sesiones recientes y retomar un borrador.

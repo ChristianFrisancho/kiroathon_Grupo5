@@ -77,18 +77,29 @@ class LocalSimulatedGenerator(Generator):
         plan = [(t, tuple(r for r in refs if r in available), w) for t, refs, w in self._PLAN]
         if all(refs for _, refs, _ in plan):
             return plan
-        # Módulo distinto del ejemplo: una actividad por fragmento.
-        return [("Actividad sobre %s" % f["id"], (f["id"],), 1) for f in module["fragments"]]
+        # Módulo distinto del ejemplo: una actividad por fragmento, descrita a partir de su propio texto.
+        return [("Trabajar %s en grupos" % f["id"], (f["id"],), 1) for f in module["fragments"]]
+
+    @staticmethod
+    def _generic_description(fragment: Dict[str, Any], materials: List[str]) -> str:
+        first = fragment["text"].split(". ")[0].rstrip(".")
+        using = ("con %s" % ", ".join(materials)) if materials else "de forma oral"
+        return ("Leer el fragmento %s («%s») y resolver en grupos un ejemplo %s; cada grupo explica su resultado."
+                % (fragment["id"], first, using))
 
     def generate(self, module: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         plan = self._plan(module)
+        generic = plan[0][0].startswith("Trabajar ")
+        fragments = {f["id"]: f for f in module["fragments"]}
         minutes = split_minutes(context["durationMinutes"], [w for _, _, w in plan])
         materials = context["materials"]
         has_board = any(m.casefold() in ("pizarra", "pizarrón") for m in materials)
         has_paper = any(m.casefold() in ("papel", "hojas", "cuaderno") for m in materials)
         activities = []
         for index, ((title, refs, _), mins) in enumerate(zip(plan, minutes), start=1):
-            if index == 1:
+            if generic:
+                how = self._generic_description(fragments[refs[0]], materials)
+            elif index == 1:
                 how = (
                     "Escribir los tres pasos en la pizarra y mostrar un ejemplo con dos estudiantes."
                     if has_board
@@ -123,7 +134,10 @@ class LocalSimulatedGenerator(Generator):
             "durationMinutes": context["durationMinutes"],
             "materials": list(materials),
             "activities": activities,
-            "expectedEvidence": "Cada estudiante explica con sus palabras una idea que escuchó y cómo comprobó su comprensión.",
+            "expectedEvidence": (
+                "Cada grupo resuelve un ejemplo de «%s» y explica con sus palabras cómo llegó al resultado."
+                % module["title"].lower() if generic else
+                "Cada estudiante explica con sus palabras una idea que escuchó y cómo comprobó su comprensión."),
         }
 
     def adapt(

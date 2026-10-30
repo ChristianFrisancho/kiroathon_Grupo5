@@ -1,6 +1,7 @@
 import { announce, clear, errorBox, h } from './util.js';
 import { renderHoy } from './views/hoy.js';
 import { renderAprendizaje } from './views/aprendizaje.js';
+import { renderNuevoModulo } from './views/nuevoModulo.js';
 import { renderAula } from './views/aula.js';
 import { renderRevisar } from './views/revisar.js';
 import { renderPortafolio, renderSesion } from './views/portafolio.js';
@@ -11,6 +12,7 @@ import { renderBienestar } from './views/bienestar.js';
 const ROUTES = [
   { nav: 'hoy', re: /^\/hoy$/, view: renderHoy, title: 'Hoy' },
   { nav: 'aprendizaje', re: /^\/aprendizaje$/, view: renderAprendizaje, title: 'Mi aprendizaje' },
+  { nav: 'aprendizaje', re: /^\/aprendizaje\/nuevo$/, view: renderNuevoModulo, title: 'Agregar módulo' },
   { nav: 'aula', re: /^\/aula$/, view: renderAula, title: 'Preparar clase' },
   { nav: 'aula', re: /^\/revisar$/, view: renderRevisar, title: 'Revisar el borrador' },
   { nav: 'portafolio', re: /^\/portafolio$/, view: renderPortafolio, title: 'Mi portafolio' },

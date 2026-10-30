@@ -8,7 +8,12 @@ export async function renderAprendizaje({ navigate }) {
   const modules = await Promise.all(summaries.map((m) => api.get(`/api/modules/${m.id}`)));
 
   return h('div', null,
-    h('h1', null, 'Mi aprendizaje'),
+    h('div', { class: 'row between' },
+      h('h1', { class: 'm0' }, 'Mi aprendizaje'),
+      h('button', {
+        type: 'button', class: 'btn primary',
+        onclick: () => navigate('/aprendizaje/nuevo'),
+      }, '+ Agregar módulo')),
     h('p', { class: 'lead' }, 'Elige el contenido de formación que quieres convertir en una clase. Generar una clase no significa haber completado o aprobado un curso.'),
     modules.map((module) =>
       h('article', { class: 'card highlight' },

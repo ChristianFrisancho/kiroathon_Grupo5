@@ -442,6 +442,35 @@ class AiOutputTests(unittest.TestCase):
         finally:
             service.close()
 
+    def test_respuesta_invalida_se_vuelve_a_pedir_una_vez(self):
+        bad = json.loads(lesson())
+        bad["expectedEvidence"] = ["lista", "en vez de texto"]   # caso real observado en producción
+        bedrock = FakeBedrock(json.dumps(bad), lesson())
+        service = bedrock_sqlite_service(bedrock)
+        try:
+            status, draft = Api(service)("POST", "/api/drafts/generate", CASE)
+        finally:
+            service.close()
+        self.assertEqual(status, 200)
+        self.assertTrue(draft["generatedBy"]["isBedrock"])
+        self.assertEqual(len(bedrock.calls), 2)
+        self.assertIn("no fue válida", bedrock.calls[1]["messages"][0]["content"][0]["text"])
+
+    def test_dos_respuestas_invalidas_dan_502_sin_guardar(self):
+        bad = json.loads(lesson())
+        bad["expectedEvidence"] = {"texto": "objeto"}
+        bedrock = FakeBedrock(json.dumps(bad))
+        service = bedrock_sqlite_service(bedrock)
+        try:
+            api = Api(service)
+            status, body = api("POST", "/api/drafts/generate", CASE)
+            self.assertEqual((status, body["error"]["code"]), (502, "generation_failed"))
+            self.assertIn("la evidencia esperada debe ser texto", body["error"]["message"])
+            self.assertEqual(len(bedrock.calls), 2)
+            self.assertEqual(api("GET", "/api/sessions")[1], [])
+        finally:
+            service.close()
+
     def test_todas_las_referencias_inventadas_da_502(self):
         status, body = self.generate(lesson(refs=(["M7"], ["M8"], ["X"], [])))
         self.assertEqual(status, 502)

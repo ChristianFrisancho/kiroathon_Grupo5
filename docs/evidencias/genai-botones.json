@@ -1,0 +1,48 @@
+{
+  "timestampUtc": "2026-10-30T19:59:28.163121+00:00",
+  "commit": "740605787cf1812e0c45ab88d95e8532e439583b",
+  "baseUrl": "https://nxrlbbnerb.execute-api.us-east-1.amazonaws.com",
+  "browser": "Chromium headless (Playwright)",
+  "results": [
+    {
+      "button": "Crear borrador",
+      "passed": true,
+      "seconds": 3.38,
+      "origin": "Origen del borrador: Amazon Bedrock  Generado con Amazon Bedrock (us.amazon.nova-lite-v1:0). Revísalo antes de usarlo."
+    },
+    {
+      "button": "Regenerar borrador",
+      "passed": true,
+      "seconds": 4.19,
+      "origin": "Generado con Amazon Bedrock (us.amazon.nova-lite-v1:0). Revísalo antes de usarlo.",
+      "version": 2,
+      "badges": [
+        "Borrador",
+        "Versión vigente: 2 de 2",
+        "Amazon Bedrock",
+        "Guardado en Mi portafolio",
+        "Borrador",
+        "Borrador",
+        "Borrador"
+      ]
+    },
+    {
+      "button": "Adaptar en Mi aula",
+      "passed": true,
+      "seconds": 3.69,
+      "origin": "Origen del borrador: Amazon Bedrock  Generado con Amazon Bedrock (us.amazon.nova-lite-v1:0). Revísalo antes de usarlo.",
+      "totalMinutes": 40,
+      "provenance": "Adaptación de «La balanza de las ecuaciones», compartida por Docente simulado de matemática · secundaria. La procedencia"
+    },
+    {
+      "button": "Resumir acuerdos",
+      "passed": true,
+      "seconds": 1.68,
+      "origin": "Generado con Amazon Bedrock (us.amazon.nova-lite-v1:0). Revísalo antes de usarlo.",
+      "summaryChars": 468,
+      "summaryStart": "La actividad \"Midiendo el aula con pasos y metros\" recibió 2 valoraciones completas y 1 parcial. La media general es 4.3. Coinciden en que empezar con pasos gen"
+    }
+  ],
+  "consoleErrors": [],
+  "allPassed": true
+}

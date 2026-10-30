@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Ejecutar pruebas al guardar código",
+      "trigger": "PostFileSave",
+      "description": "Corre la suite completa cuando se guarda código del back, del front o de las pruebas.",
+      "matcher": "(back|front|tests)/.*\\.(py|js|html|css)$",
+      "action": {
+        "type": "command",
+        "command": "python3 -m unittest discover -s tests",
+        "timeout": 120
+      }
+    }
+  ]
+}

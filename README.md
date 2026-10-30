@@ -1,70 +1,60 @@
-# 🖥️ Copiloto del docente público
+# AulaLista: ayuda al docente de colegio público a pasar del módulo del curso a una clase y a su portafolio
 
-> Del módulo del curso a la sesión de clase y al portafolio de evidencias.
+**Equipo T005, Los 4 del grupo 5 · Track: Copiloto del docente público.** *Del módulo del curso a la sesión de clase y al portafolio de evidencias.*
 
-Asistente inteligente que acompaña al docente de colegio público en todo el ciclo
-de planificación y evidencia pedagógica: parte del **módulo del curso**, genera la
-**sesión de clase** y la convierte en un **portafolio de evidencias** listo para
-sustentar su trabajo.
+Un docente de colegio público necesita convertir el contenido de un curso en una clase para su grupo, su tiempo y sus materiales, conservar su trabajo y registrar lo que observa al aplicarla. Principio: **la IA prepara; el docente decide.**
 
----
+## Estado (fase 1, local)
 
-## 🎯 El reto
-
-| | |
+| Elemento | Estado |
 |---|---|
-| **Reto** | Copiloto del docente público |
-| **Usuario principal** | Docente de colegio público |
-| **Qué se entrega** | Del módulo del curso a la sesión de clase y al portafolio de evidencias |
+| Backend (`back/`) y frontend (`front/`) | Implementados y probados en local |
+| Persistencia | SQLite real (se conserva al recargar y al reiniciar) |
+| Generación de la sesión | **Plantilla local determinista, rotulada «No es Amazon Bedrock»** |
+| Amazon Bedrock, DynamoDB, API Gateway, Lambda | **Pendientes (fase 2).** Nada está desplegado en AWS |
+| Voz con Transcribe | Pendiente (opcional, fase 2) |
 
-## 🧩 El problema
+No se entrevistó a docentes ni se midió ahorro de tiempo o mejora educativa. Todos los datos son simulados y no hay integración con APRENDE PERÚ.
 
-El docente de colegio público invierte muchas horas en tareas administrativas y de
-planificación que le restan tiempo para enseñar:
+## Qué hace
 
-- Traducir el **módulo o unidad del curso** en sesiones de clase concretas y alineadas al currículo.
-- Preparar materiales, actividades y criterios de evaluación para cada sesión.
-- Recopilar y ordenar **evidencias** (planificaciones, productos de estudiantes, registros) para su portafolio docente.
+- **Hoy / Mi tiempo:** «Preparar clase», «Mi portafolio», sesiones recientes y retomar un borrador.
+- **Mi aprendizaje:** módulo «Escucha activa y diálogo respetuoso» (simulado) con fragmentos M1–M3 y «Usar en mi clase».
+- **Mi aula:** módulo, grado, duración, materiales e indicaciones → «Crear borrador» → revisar y editar → guardar borrador o versión revisada. El código valida formato, que los minutos sumen y que las referencias existan.
+- **Mi portafolio:** sesiones, versiones, copia, regeneración, impresión y registros de aplicación (rotulados «Registro simulado»).
+- **Mi red · Aprendemos juntos:** experiencia simulada con valoración de uso 1–5 (4 criterios, «No puedo valorarlo»), media (ejemplo: **4,4/5 · 3 valoraciones completas · Pocas valoraciones · Datos simulados**), comentarios de diseño, resumen y adaptación con procedencia.
+- **Mis oportunidades:** función futura, sin pagos ni reservas.
+- **Mi bienestar:** preferencias elegidas (apagadas por defecto).
 
-Todo esto se hace de forma manual, dispersa y repetitiva, sin herramientas que
-conecten un paso con el siguiente.
-
-## 💡 La solución
-
-Un **copiloto** que conecta los tres momentos del trabajo docente en un solo flujo:
+## Estructura
 
 ```
-📚 Módulo del curso  →  🧑‍🏫 Sesión de clase  →  🗂️ Portafolio de evidencias
+back/    API en Python (solo biblioteca estándar): api, service, validators, scoring, generator, repository
+front/   Aplicación web estática: index.html, css/, js/ (módulos ES, sin compilar)
+tests/   Pruebas del flujo completo
+.kiro/   Spec (requirements, design, tasks), steering y hook
 ```
 
-1. **Módulo del curso** — El docente ingresa la unidad, competencias o contenidos del curso.
-2. **Sesión de clase** — El copiloto propone la planificación de la sesión: objetivos, actividades, recursos y criterios de evaluación alineados al currículo.
-3. **Portafolio de evidencias** — Cada sesión y sus productos se organizan automáticamente como evidencias listas para sustentar la labor docente.
+## Ejecutar
 
-## 👩‍🏫 Usuario objetivo
+```bash
+python3 back/run.py          # http://127.0.0.1:8000 (API + front en el mismo origen)
+```
 
-Docentes de colegios públicos que necesitan planificar más rápido, mantener la
-coherencia con el currículo nacional y documentar su trabajo sin esfuerzo adicional.
+Variables opcionales: `AULALISTA_DB`, `AULALISTA_PORT`, `AULALISTA_HOST`, `AULALISTA_DEMO_MODE`, `AULALISTA_GENERATOR` (`local`).
 
-## ✨ Funcionalidades clave
+## Pruebas (una sola orden)
 
-- **Generación de sesiones** a partir del módulo del curso.
-- **Alineación curricular** con competencias y criterios de evaluación.
-- **Sugerencia de actividades y recursos** adaptados al contexto del aula.
-- **Portafolio automático** que ordena las evidencias por sesión y unidad.
-- **Exportación** de sesiones y portafolio en formatos listos para presentar.
+```bash
+python3 -m unittest discover -s tests
+```
 
-## 🚀 Flujo de uso
+No requiere instalar nada. Las pruebas son clases `unittest`, que pytest también descubre (`python -m pytest -q tests`); esa vía no se ha ejecutado porque pytest no está instalado en este entorno.
 
-1. El docente selecciona o carga el **módulo del curso**.
-2. El copiloto genera una **propuesta de sesión de clase** editable.
-3. El docente ajusta y confirma la sesión.
-4. Las sesiones y sus productos se agregan al **portafolio de evidencias**.
+## API
 
-## 🛠️ Estado del proyecto
+`GET /health`, `POST /items`, `GET /items`, `GET /items/{id}`, `POST /jobs`, `GET /jobs/{id}` y las rutas `/api/...` de la aplicación (ver `back/aulalista/api.py`). La demo no tiene login: el usuario es `u-demo` y la cabecera `X-User-Id` solo sirve para probar con varias personas.
 
-Proyecto en desarrollo para la **Kiroathon — Grupo 5**.
+## Fase 2
 
-## 👥 Equipo
-
-**Los 4 del grupo 5** — Kiroathon.
+Bedrock (Converse API) detrás de la interfaz `Generator`, DynamoDB detrás de `Repository`, `template.yaml` y despliegue. Ver `.kiro/specs/aulalista-copiloto-docente/tasks.md`.

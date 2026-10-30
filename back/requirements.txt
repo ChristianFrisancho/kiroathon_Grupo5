@@ -1,0 +1,2 @@
+# Fase 1: solo biblioteca estándar de Python (3.9+). No hay dependencias que instalar.
+# Fase 2 (AWS) añadirá boto3 aquí.

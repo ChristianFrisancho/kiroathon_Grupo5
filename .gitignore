@@ -8,3 +8,5 @@ node_modules/
 dist/
 build/
 cdk.out/
+.aws-sam/
+samconfig.toml

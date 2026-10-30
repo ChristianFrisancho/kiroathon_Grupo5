@@ -4,11 +4,11 @@ from __future__ import annotations
 import json
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from . import scoring, seed
-from .config import TEAM_ID, Settings
+from .config import Settings
 from .errors import ApiError
 from .generator import Generator, GeneratorError
 from .repository import Repository
@@ -22,6 +22,9 @@ from .validators import (
 
 REVIEW_DRAFT = "borrador"
 REVIEW_REVIEWED = "revisada"
+JOB_READY_DELAY = timedelta(seconds=1)
+ITEMS_LIST_LIMIT = 100
+KNOWN_ENGINES = ("local-simulado", "local-respaldo", "bedrock")
 
 
 def new_id(prefix: str) -> str:
@@ -43,11 +46,13 @@ class Service:
         self.generator = generator
         self.settings = settings
         self.clock = clock
-        self._jobs = ThreadPoolExecutor(max_workers=2, thread_name_prefix="aulalista-job")
+        self._jobs = (ThreadPoolExecutor(max_workers=2, thread_name_prefix="aulalista-job")
+                      if settings.job_mode == "thread" else None)
         self.seed_demo_data()
 
     def close(self) -> None:
-        self._jobs.shutdown(wait=True)
+        if self._jobs is not None:
+            self._jobs.shutdown(wait=True)
         self.repo.close()
 
     # ------------------------------------------------------------------
@@ -72,7 +77,7 @@ class Service:
         for reviewer, values, context in exp["ratings"]:
             self.repo.upsert_rating(
                 {
-                    "id": new_id("rt"), "versionId": exp["id"], "reviewerId": reviewer,
+                    "id": "rt-seed-%s" % reviewer, "versionId": exp["id"], "reviewerId": reviewer,
                     "clarity": values[0], "feasibility": values[1], "coherence": values[2],
                     "observation": values[3], "context": context, "whatToKeep": "", "whatToChange": "",
                     "isSimulated": True, "createdAt": now, "updatedAt": now,
@@ -80,7 +85,7 @@ class Service:
             )
         self.repo.add_comment(
             {
-                "id": new_id("cm"), "versionId": exp["id"], "authorId": "u-sim-2",
+                "id": "cm-seed-1", "versionId": exp["id"], "authorId": "u-sim-2",
                 "text": "Yo probaría mostrar primero una demostración breve con dos voluntarios.",
                 "isSimulated": True, "createdAt": now,
             }
@@ -90,7 +95,7 @@ class Service:
     # Salud y portada
     # ------------------------------------------------------------------
     def health(self) -> Dict[str, Any]:
-        return {"status": "ok", "team": TEAM_ID}
+        return {"status": "ok", "team": self.settings.team_id}
 
     def overview(self, user: str) -> Dict[str, Any]:
         sessions = self.list_sessions(user)
@@ -123,6 +128,7 @@ class Service:
     # Mi aula: borradores
     # ------------------------------------------------------------------
     def _generation(self, fn: Callable[..., Dict[str, Any]], *args: Any) -> Dict[str, Any]:
+        """Ejecuta el motor. Devuelve el resultado; el motor puede indicar en `_generatedBy` quién lo produjo."""
         try:
             return fn(*args)
         except ApiError:
@@ -144,23 +150,33 @@ class Service:
         module = self.get_module(payload.get("moduleId"))
         context = normalize_context(payload, module)
         raw = self._generation(self.generator.generate, module, context)
+        engine = self._engine_of(raw)
         content = validate_lesson_content(raw, module, context)
-        return self._draft_response(module, context, content, None)
+        return self._draft_response(module, context, content, None, engine)
 
-    def _draft_response(self, module, context, content, provenance) -> Dict[str, Any]:
+    def _engine_of(self, raw: Any) -> Dict[str, Any]:
+        if isinstance(raw, dict) and isinstance(raw.get("_generatedBy"), dict):
+            return raw.pop("_generatedBy")
+        return self.generator.info()
+
+    def _draft_response(self, module, context, content, provenance, engine) -> Dict[str, Any]:
         return {
             "isDraft": True,
             "reviewStatus": REVIEW_DRAFT,
             "context": context,
             "content": content,
-            "generatedBy": self.generator.info(),
+            "generatedBy": engine,
             "module": self._module_summary(module),
             "provenance": provenance,
         }
 
     def _generated_by(self, claimed: Any) -> Dict[str, Any]:
-        if isinstance(claimed, dict) and claimed.get("engine") == self.generator.name:
+        """Origen declarado por el cliente al guardar. Solo se aceptan motores conocidos de este servidor."""
+        engine = claimed.get("engine") if isinstance(claimed, dict) else None
+        if engine == self.generator.name:
             return self.generator.info()
+        if engine == "local-respaldo" and self.generator.name == "bedrock":
+            return self.generator.fallback_info()  # type: ignore[attr-defined]
         return {"engine": "manual", "isBedrock": False, "label": "Escrita o editada por el docente."}
 
     def _resolve_provenance(self, raw: Any) -> Optional[Dict[str, Any]]:
@@ -261,13 +277,14 @@ class Service:
                 merged[key] = payload[key]
         context = normalize_context(merged, module)
         raw = self._generation(self.generator.generate, module, context)
+        engine = self._engine_of(raw)
         content = validate_lesson_content(raw, module, context)
         now = self.clock()
         version = {
             "id": new_id("ver"), "sessionId": session_id, "number": self._next_number(session_id),
             "parentVersionId": parent["id"], "context": context, "content": content,
             "reviewStatus": REVIEW_DRAFT, "reason": "Regenerada con el contexto indicado",
-            "generatedBy": self.generator.info(), "createdAt": now,
+            "generatedBy": engine, "createdAt": now,
         }
         self.repo.add_version(version, content["title"], now)
         return self.get_session(user, session_id)
@@ -489,9 +506,10 @@ class Service:
                 merged[key] = payload[key]
         context = normalize_context(merged, module)
         raw = self._generation(self.generator.adapt, module, context, e)
+        engine = self._engine_of(raw)
         content = validate_lesson_content(raw, module, context)
         provenance = self._resolve_provenance({"experienceId": experience_id})
-        return self._draft_response(module, context, content, provenance)
+        return self._draft_response(module, context, content, provenance, engine)
 
     # ------------------------------------------------------------------
     # Reconocimientos descriptivos (derivados de acciones comprobables)
@@ -563,7 +581,8 @@ class Service:
         return {"id": item["id"], "value": json.loads(item["value"])}
 
     def list_items(self) -> List[Dict[str, Any]]:
-        return [{"id": i["id"], "value": json.loads(i["value"])} for i in self.repo.list_items()]
+        newest = sorted(self.repo.list_items(), key=lambda i: (i["createdAt"], i["id"]), reverse=True)
+        return [{"id": i["id"], "value": json.loads(i["value"])} for i in newest[:ITEMS_LIST_LIMIT]]
 
     def create_job(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         value = payload.get("input")
@@ -571,7 +590,11 @@ class Service:
             raise ApiError(422, "invalid_field", "«input» debe ser un texto de 1 a 1000 caracteres.")
         job_id = new_id("job")
         self.repo.add_job(job_id, value, self.clock())
-        self._jobs.submit(self._run_job, job_id, value)
+        if self._jobs is not None:
+            # Servidor local: un worker en segundo plano procesa el trabajo.
+            self._jobs.submit(self._run_job, job_id, value)
+        # En Lambda (job_mode «lazy») el trabajo queda en cola y se resuelve en la primera lectura
+        # posterior a su hora de disponibilidad (1 s), con el estado persistido en DynamoDB.
         return {"jobId": job_id, "status": "queued"}
 
     def _run_job(self, job_id: str, value: str) -> None:
@@ -581,11 +604,22 @@ class Service:
         except Exception as exc:  # noqa: BLE001
             self.repo.update_job(job_id, "failed", self.clock(), error=str(exc)[:200])
 
+    def _job_ready(self, job: Dict[str, Any]) -> bool:
+        try:
+            created = datetime.fromisoformat(job["createdAt"])
+            now = datetime.fromisoformat(self.clock())
+        except (KeyError, TypeError, ValueError):
+            return True
+        return now - created >= JOB_READY_DELAY
+
     def get_job(self, job_id: str) -> Dict[str, Any]:
         job = self.repo.get_job(job_id)
         if not job:
             raise ApiError(404, "job_not_found", "No encontramos ese trabajo.")
-        body = {"jobId": job["jobId"], "status": job["status"]}
+        if self._jobs is None and job["status"] == "queued" and self._job_ready(job):
+            self._run_job(job_id, job["input"])
+            job = self.repo.get_job(job_id)
+        body = {"jobId": job["jobId"], "status": job["status"], "output": job.get("output")}
         if job["status"] == "done":
             body["output"] = job["output"]
         if job["status"] == "failed":

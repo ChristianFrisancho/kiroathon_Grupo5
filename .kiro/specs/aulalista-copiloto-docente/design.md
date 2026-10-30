@@ -1,46 +1,58 @@
 # Diseño: AulaLista
 
+## Arquitectura mínima en AWS (template.yaml)
+
+```
+Navegador ──HTTPS──▶ API Gateway HTTP API (rutas / y /{proxy+}, sin autenticación, con límite de tasa)
+                         │
+                         ▼
+               Lambda AppFunction (Python 3.12, arm64, 29 s)
+               back/app.py → handler
+                 ├─ /health, /items, /jobs, /api/...  → aulalista.api.handle_request
+                 └─ resto (GET)                        → archivos de front/ (mismo dominio)
+                         │                         │
+                         ▼                         ▼
+          DynamoDB ItemsTable (pk, sk, doc)   Amazon Bedrock Converse (MODEL_ID)
+```
+
+Variables de la Lambda: `TEAM_ID` (parámetro `TeamId`, por defecto T005), `TABLE_NAME`, `MODEL_ID` (perfil `us.amazon.nova-lite-v1:0`, probado en la cuenta). Permisos mínimos: `DynamoDBCrudPolicy` sobre la tabla y `bedrock:InvokeModel` sobre modelos y perfiles de inferencia. Output `ApiUrl` sin barra final.
+
 ## Estructura del repositorio
 
-- `back/`: API en Python 3.9+ solo con biblioteca estándar (apta para Lambda Python 3.12 en la fase 2).
-- `front/`: aplicación web estática (HTML, CSS y módulos ES), sin paso de compilación.
-- `tests/`: pruebas del flujo completo; se ejecutan con una sola orden.
-- `.kiro/`: spec, steering y hooks de este trabajo.
+- `back/`: Python solo con biblioteca estándar; boto3 se importa dentro de funciones (lo trae el runtime).
+- `front/`: HTML, CSS y módulos ES sin compilar.
+- `tests/`: una sola orden; `tests/test_app.py` simula DynamoDB (FakeTable) y Bedrock (FakeBedrock).
+- `scripts/build_lambda.py` / `Makefile`: empaquetan `back/app.py`, `back/aulalista/` y `front/`.
 
-## Backend (`back/aulalista/`)
+## Módulos del backend
 
 | Archivo | Responsabilidad |
 |---|---|
-| `api.py` | Enrutador `handle_request(service, método, ruta, cabeceras, cuerpo)`. No depende de ningún servidor, por lo que la fase 2 lo envuelve en un handler de Lambda. |
-| `server.py` | Servidor `http.server` local que sirve la API y `front/` en el mismo origen, con cabeceras de seguridad y CSP. |
-| `service.py` | Reglas de negocio: borradores, versiones, revisión, copias, registros, compartir, valoraciones, adaptación, preferencias, items y jobs. |
-| `validators.py` | Validación determinista de contexto y sesión (minutos, IDs de referencias, materiales declarados). El servidor resuelve las fuentes; no confía en lo que devuelva el motor. |
-| `scoring.py` | Media de valoraciones completas con `Fraction` y redondeo ROUND_HALF_UP a un decimal. |
-| `generator.py` | Interfaz `Generator`. `LocalSimulatedGenerator` es una plantilla determinista rotulada «No es Bedrock». `BedrockGenerator` falla de forma explícita hasta la fase 2. |
-| `repository.py` | Persistencia SQLite con transacciones. En la fase 2 se sustituye por DynamoDB con los mismos métodos. |
-| `seed.py` | Módulo simulado, caso de ejemplo y experiencia simulada con tres valoraciones. |
+| `app.py` | Adaptador Lambda (payload 2.0): API o archivos estáticos. Un servicio por contenedor. |
+| `api.py` | Enrutador independiente del servidor; errores siempre en JSON sin trazas. |
+| `service.py` | Reglas: borradores, versiones, revisión, copias, registros, compartir, valoraciones, adaptación, items y jobs. |
+| `bedrock.py` | Converse con prompts de sistema diseñados (rol, reglas, límite de 400 caracteres por actividad, JSON), reintentos ante throttling, respaldo rotulado si no responde, 502 en otros errores. |
+| `validators.py` | Validación determinista de contexto y sesión; las fuentes las resuelve el servidor. |
+| `scoring.py` | Media de valoraciones completas (Fraction, ROUND_HALF_UP a un decimal). |
+| `dynamo_repository.py` | Tabla única: `pk` = tipo (SESSION, VERSION, RECORD, EXPERIENCE, RATING, COMMENT, PREFERENCES, ITEM, JOB), `sk` = id, `doc` = JSON. Cada listado hace Query de una partición y pagina con LastEvaluatedKey. Valoración con clave `versión#revisor` (unicidad). |
+| `repository.py` | Mismo contrato sobre SQLite para el servidor local. |
 
-## Modelo de datos
+## Flujo GenAI central
 
-- **Session** (dueño, título, módulo y versión, procedencia, versión vigente).
-- **LessonVersion** (número, versión padre, contexto, contenido, `reviewStatus` borrador|revisada, motivo, motor de origen). Es inmutable salvo el estado de revisión.
-- **ApplicationRecord** (sesión, versión, fecha declarada, actividad, observación, próximo ajuste, `isSimulated`).
-- **Experience** (copia compartida e inmutable de una versión revisada; su id es también el id de versión valorada).
-- **Rating** con unicidad (`versionId`, `reviewerId`): editar actualiza la fila, no inserta otra.
-- **Comment** (comentario de diseño, separado de las valoraciones), **Preferences**, **Item**, **Job**.
+1. El docente confirma el contexto en «Preparar»; el servidor lo valida (si es inválido, no llama al modelo).
+2. `BedrockGenerator.generate` envía el contexto y los fragmentos M1–M3 dentro de `<modulo>` e `<indicaciones>` (datos, nunca instrucciones).
+3. La respuesta JSON se normaliza de forma determinista (referencias conocidas, materiales declarados, minutos reescalados a la duración) y luego `validate_lesson_content` decide.
+4. El borrador vuelve con `generatedBy`; el docente edita y decide guardar como borrador o como versión revisada.
+5. «Adaptar en Mi aula» envía además la experiencia y su mejora propuesta; «Resumir acuerdos» envía solo los registros guardados.
+
+## Trabajos asíncronos
+
+`POST /jobs` guarda `queued` con `createdAt` en DynamoDB y responde 202. En Lambda (`job_mode=lazy`) la primera lectura posterior a 1 s calcula la salida (entrada invertida), persiste `done` y la devuelve: el verificador sondea cada 1,5 s, así que el resultado está listo en la primera consulta. En local, un ThreadPoolExecutor procesa el trabajo en segundo plano.
 
 ## Decisiones
 
-1. **Borrador no persistido hasta que el docente guarda.** `POST /api/drafts/generate` no escribe nada; así un fallo no deja sesiones a medias.
-2. **Revisión explícita.** `markReviewed: true` es la única forma de crear una versión revisada; copiar o regenerar siempre crea borradores.
-3. **Demo sin login.** El usuario es `u-demo`; la cabecera `X-User-Id` solo sirve para probar a varias personas y no es autenticación. La fase 2 usa identidad real.
-4. **Jobs reales.** `POST /jobs` guarda el estado `queued`, lo ejecuta un `ThreadPoolExecutor` y persiste `running` y `done`.
-5. **Seguridad.** CSP `default-src 'self'`, sin HTML dinámico, validación en el servidor, rutas estáticas confinadas a `front/`.
-
-## Frontend (`front/`)
-
-Enrutamiento por hash. Vistas: Hoy, Mi aprendizaje, Mi aula (Preparar y Revisar), Mi portafolio (lista y detalle), Mi red (lista y detalle), Mis oportunidades y Mi bienestar. Paleta en variables CSS: negro `#0b0a0d`, naranja `#ff7a1a`, hueso `#f7efe3`, con acentos morado, verde y amarillo solo para estados. La copia de trabajo en curso se guarda en `localStorage` únicamente para retomar; lo guardado vive en el servidor.
-
-## Fase 2 (AWS)
-
-`BedrockGenerator` con Converse API, `DynamoRepository`, `template.yaml` (API Gateway HTTP + Lambda + DynamoDB), despliegue y medición del tiempo de generación; Transcribe como entrada de voz opcional.
+1. Borrador no persistido hasta que el docente guarda.
+2. Revisión explícita (`markReviewed: true` estricto); copiar o regenerar crea borradores.
+3. Demo sin login: usuario `u-demo`; `X-User-Id` sirve solo para pruebas, no es autenticación.
+4. Tabla única con Query por tipo: suficiente para la demo; con volumen real se añadirían índices por dueño y sesión.
+5. Seguridad: CSP `default-src 'self'`, sin HTML dinámico, validación en el servidor y archivos confinados a `front/`.

@@ -2,9 +2,9 @@
 
 ## Introducción
 
-Un docente de colegio público necesita convertir el contenido de un curso en una clase que pueda realizar con su grupo, su tiempo y sus materiales. Después necesita conservar su trabajo y registrar lo que observa al aplicarlo. Principio: la IA prepara; el docente decide.
+Track «Copiloto del docente público», enunciado: «Del módulo del curso a la sesión de clase y al portafolio de evidencias». Un docente de colegio público necesita convertir el contenido de un curso en una clase que pueda realizar con su grupo, su tiempo y sus materiales; después, conservar su trabajo y registrar lo que observa al aplicarla. Principio: la IA prepara; el docente decide.
 
-Este spec cubre la fase 1 (backend y frontend locales con persistencia real). La fase 2 conecta servicios AWS (Bedrock, DynamoDB, API Gateway/Lambda).
+Fuente: `PLATAFORMA-PARA-KIRON.md` (secciones 3 a 10). En el repositorio no hay `CANVAS.md` ni `RETOS.md`; si aparecen, su contenido obligatorio sustituye al ejemplo. Todos los datos son simulados.
 
 ## Historia principal
 
@@ -16,42 +16,43 @@ Este spec cubre la fase 1 (backend y frontend locales con persistencia real). La
 1. WHEN el docente abre Mi aprendizaje THEN el sistema SHALL mostrar título, fuente, versión y fragmentos (M1–M3) del módulo precargado y rotulado como simulado.
 2. WHEN pulsa «Usar en mi clase» THEN Mi aula SHALL abrirse con ese módulo seleccionado sin repetir datos.
 
-### R2. Mi aula
-1. WHEN el docente confirma módulo, grado, duración (10–180 min), materiales e indicaciones y pulsa «Crear borrador» THEN el sistema SHALL devolver una sesión con propósito, actividades con minutos, materiales y evidencia esperada.
-2. El código SHALL validar formato, que los minutos sumen la duración, que las referencias existan en el módulo y que los materiales sean los declarados.
-3. IF la generación falla o devuelve una sesión inválida THEN el sistema SHALL mostrar un error comprensible, conservar las entradas y permitir reintentar, sin crear sesiones.
-4. La salida SHALL declarar su origen; la plantilla local SHALL rotularse «No es Amazon Bedrock».
+### R2. Mi aula con Amazon Bedrock
+1. WHEN el docente confirma módulo, grado, duración (10–180 min), materiales e indicaciones y pulsa «Crear borrador» THEN Amazon Bedrock (API Converse) SHALL devolver una sesión con propósito, actividades con minutos, materiales y evidencia esperada, con referencias a M1–M3.
+2. El prompt SHALL incluir el contexto confirmado, el rol del docente de colegio público, el límite de longitud y el tono, y SHALL tratar módulo e indicaciones como datos, nunca como instrucciones.
+3. El código SHALL validar que los minutos sumen la duración, que las referencias existan y que los materiales sean los declarados. Una entrada inválida (falta el grado, duración fuera de rango, indicaciones de más de 500 caracteres) SHALL rechazarse sin llamar al modelo.
+4. IF Bedrock responde ThrottlingException THEN el sistema SHALL reintentar con espera. IF el modelo no responde THEN SHALL entregar un borrador de respaldo rotulado «Respaldo local». IF ocurre otro error THEN SHALL responder 502 con un mensaje comprensible, conservando las entradas.
+5. Cada borrador SHALL declarar su origen (`generatedBy`); el cliente no puede atribuir a Bedrock un texto que no salió de Bedrock.
 
 ### R3. Revisión humana
 1. El resultado nace como borrador; solo una acción expresa («Guardar versión revisada» o «Marcar como revisada») lo marca revisado.
-2. Una edición posterior, una regeneración o una copia SHALL crear un borrador que no hereda la revisión.
-3. Una nueva versión SHALL conservar el historial anterior.
+2. Una edición posterior, una regeneración o una copia SHALL crear un borrador que no hereda la revisión, y SHALL conservar el historial.
 
 ### R4. Mi portafolio
-1. Las sesiones y versiones SHALL persistir en el servidor y recuperarse tras recargar.
+1. Las sesiones y versiones SHALL persistir en DynamoDB y recuperarse tras recargar o en otro contenedor de Lambda.
 2. El docente SHALL poder continuar la edición, crear copias, regenerar e imprimir.
-3. Cada sesión admite registros de aplicación (fecha declarada, actividad, observación, próximo ajuste) ligados a una versión, rotulados «Registro simulado» en la demo.
-4. La evidencia esperada y la observación declarada SHALL mostrarse por separado.
+3. Cada sesión admite registros de aplicación (fecha declarada, actividad, observación, próximo ajuste) ligados a una versión y rotulados «Registro simulado».
 
-### R5. Mi red, Aprendemos juntos (extensión acotada)
-1. El autor SHALL compartir una copia separada solo con confirmación expresa y desde una versión revisada; los registros privados no se copian.
-2. La valoración de uso (1–5, cuatro criterios, «No puedo valorarlo») SHALL requerir declarar que se usó la actividad.
-3. La media SHALL ser el promedio de promedios de valoraciones completas, con un decimal; ausentes nunca valen 0; editar reemplaza; la autoevaluación del autor no cuenta; una versión nueva no hereda la media.
-4. El ejemplo simulado [5,4,4,5], [4,4,5,4], [5,5,4,4] SHALL dar 4,4/5, 3 valoraciones completas, «Pocas valoraciones», «Datos simulados».
-5. Adaptar una experiencia SHALL crear un borrador que conserva la procedencia.
+### R5. Mi red, Aprendemos juntos
+1. Compartir SHALL exigir confirmación expresa y una versión revisada; los registros privados no se copian.
+2. La valoración 1–5 (cuatro criterios, «No puedo valorarlo») SHALL exigir declarar el uso; la media es el promedio de promedios de valoraciones completas, con un decimal; ausentes ≠ 0; editar reemplaza; la autoevaluación del autor no cuenta.
+3. El ejemplo [5,4,4,5], [4,4,5,4], [5,5,4,4] SHALL mostrarse como 4,4/5 · 3 valoraciones completas · Pocas valoraciones · Datos simulados.
+4. «Resumir acuerdos» SHALL usar Bedrock solo con los registros guardados (máx. 120 palabras), con respaldo local rotulado.
+5. Adaptar una experiencia SHALL enviar la mejora propuesta a Bedrock y crear un borrador con procedencia, que empieza sin valoraciones.
 
 ### R6. Mis oportunidades, Mi tiempo, Mi bienestar
-1. Mis oportunidades SHALL presentarse como función futura, sin pagos ni reservas.
+1. Mis oportunidades SHALL presentarse como función futura, sin pagos.
 2. Hoy SHALL ofrecer «Preparar clase», «Mi portafolio» y sesiones recientes, sin cifras de horas ahorradas.
-3. Las preferencias de aviso SHALL estar apagadas por defecto y no publicar nada sin confirmación.
+3. Las preferencias de aviso SHALL estar apagadas por defecto.
 
-### R7. Contratos verificables
-1. GET /health SHALL responder 200 con {"status":"ok","team":"T005"}.
-2. POST /items y GET /items/{id} SHALL persistir y devolver value; GET /items SHALL listar el elemento.
-3. POST /jobs SHALL responder 202 con jobId y GET /jobs/{jobId} SHALL devolver status done y la entrada invertida mediante un worker real con estado persistido.
-4. GET / SHALL responder 200 text/html sin redirecciones.
+### R7. Contratos de insignias (rutas públicas, sin autenticación)
+1. GET /health SHALL responder 200 con {"status":"ok","team":"T005"}, tomando `team` de `TEAM_ID` (parámetro `TeamId`).
+2. POST /items {"value"} SHALL responder 201 {id, value} y guardar en `ItemsTable`; GET /items/{id} SHALL devolverlo (404 si no existe); GET /items SHALL listar hasta 100 ítems, los más recientes primero, paginando la tabla completa.
+3. POST /jobs {"input"} SHALL responder 202 {jobId} y guardar el trabajo en `ItemsTable`; GET /jobs/{jobId} SHALL devolver status «done» y la entrada invertida antes de 12 s.
+4. GET {ApiUrl} SHALL responder 200 text/html sin redirecciones.
 
 ### R8. Calidad
-1. Todo texto dinámico SHALL insertarse como texto, nunca como HTML.
-2. La interfaz SHALL usar la paleta naranja y negro (tema Halloween) con contraste AA y navegación por teclado.
-3. Una sola orden SHALL ejecutar todas las pruebas.
+1. Todo texto dinámico SHALL insertarse como texto. Paleta naranja y negro con contraste AA.
+2. Una sola orden SHALL ejecutar todas las pruebas, con DynamoDB y Bedrock simulados.
+
+### R9. Infraestructura
+1. `template.yaml` SHALL declarar todos los servicios usados (HTTP API, Lambda, DynamoDB, permiso `bedrock:InvokeModel`) y exponer el Output `ApiUrl`.

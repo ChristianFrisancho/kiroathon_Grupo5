@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Ejecutar pruebas al guardar código",
+  "description": "Cuando se guarda código del backend, del frontend, de las pruebas o la infraestructura, corre la suite completa con una sola orden y corrige lo que falle sin cambiar los contratos de las insignias.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "back/**/*.py",
+      "front/**/*.js",
+      "front/**/*.html",
+      "front/**/*.css",
+      "tests/**/*.py",
+      "template.yaml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Se guardó un archivo de código. Ejecuta `python3 -m unittest discover -s tests` desde la raíz. Si algo falla, explica la causa y corrige el código (no los tests) salvo que el test esté mal. No cambies los contratos de /health, /items ni /jobs."
+  }
+}

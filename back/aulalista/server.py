@@ -2,35 +2,21 @@
 from __future__ import annotations
 
 import json
-import mimetypes
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from typing import Optional
 
 from .api import handle_request, is_api_path
 from .config import Settings, load_settings
-from .generator import build_generator
-from .repository import Repository
+from .factory import build_service
 from .service import Service
-
-SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-    "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'",
-}
-
-
-def build_service(settings: Settings) -> Service:
-    return Service(Repository(settings.db_path), build_generator(settings.generator), settings)
+from .static import SECURITY_HEADERS, resolve_static
 
 
 def make_handler(service: Service, front_dir: Optional[str]):
-    front_root = Path(front_dir).resolve() if front_dir else None
-
     class Handler(BaseHTTPRequestHandler):
-        server_version = "AulaLista/0.1"
+        server_version = "AulaLista/0.2"
 
         def log_message(self, fmt, *args):  # registros sin datos del cuerpo
             if os.environ.get("AULALISTA_QUIET"):
@@ -56,29 +42,13 @@ def make_handler(service: Service, front_dir: Optional[str]):
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self._send(status, body, "application/json; charset=utf-8", {"Cache-Control": "no-store"})
 
-        def _static(self) -> None:
-            if front_root is None:
-                return self._send(404, b"Not found", "text/plain; charset=utf-8")
-            rel = self.path.split("?", 1)[0].split("#", 1)[0]
-            rel = "index.html" if rel in ("", "/") else rel.lstrip("/")
-            target = (front_root / rel).resolve()
-            if front_root not in target.parents and target != front_root:
-                return self._send(404, b"Not found", "text/plain; charset=utf-8")
-            if target.is_dir():
-                target = target / "index.html"
-            if not target.is_file():
-                return self._send(404, b"Not found", "text/plain; charset=utf-8")
-            ctype = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
-            if ctype.startswith("text/") or ctype in ("application/javascript", "application/json"):
-                ctype += "; charset=utf-8"
-            self._send(200, target.read_bytes(), ctype, {"Cache-Control": "no-cache"})
-
         def _dispatch(self) -> None:
             path = self.path.split("?", 1)[0]
             if is_api_path(path):
                 self._api()
             elif self.command in ("GET", "HEAD"):
-                self._static()
+                status, body, ctype = resolve_static(front_dir, self.path)
+                self._send(status, body, ctype, {"Cache-Control": "no-cache"})
             else:
                 self._send(405, b"Method not allowed", "text/plain; charset=utf-8")
 
@@ -97,8 +67,8 @@ def create_server(settings: Settings, service: Optional[Service] = None) -> Thre
 def main() -> None:
     settings = load_settings()
     httpd = create_server(settings)
-    print("AulaLista en http://%s:%d  (generador: %s, modo demo: %s)"
-          % (settings.host, httpd.server_address[1], settings.generator, settings.demo_mode))
+    print("AulaLista en http://%s:%d  (generador: %s, almacén: %s, modo demo: %s)"
+          % (settings.host, httpd.server_address[1], settings.generator, settings.store, settings.demo_mode))
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

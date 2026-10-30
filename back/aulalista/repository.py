@@ -393,5 +393,6 @@ class Repository:
             return None
         return {
             "jobId": row["id"], "input": row["input"], "status": row["status"],
-            "output": row["output"], "error": row["error"], "updatedAt": row["updated_at"],
+            "output": row["output"], "error": row["error"], "createdAt": row["created_at"],
+            "updatedAt": row["updated_at"],
         }

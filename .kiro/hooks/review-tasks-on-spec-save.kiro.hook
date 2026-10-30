@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Revisar tasks.md al guardar la spec",
+  "description": "Cuando cambia requirements.md o design.md de la spec de AulaLista, revisa que tasks.md siga cubriendo cada requisito y que solo estén marcadas como hechas las tareas implementadas y probadas.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      ".kiro/specs/aulalista-copiloto-docente/requirements.md",
+      ".kiro/specs/aulalista-copiloto-docente/design.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "La spec cambió. Compara requirements.md y design.md con tasks.md: cada requisito R1-R9 debe tener al menos una tarea que lo referencie, en orden de ejecución. Marca [x] solo lo implementado y probado (indica la prueba). Si falta una tarea, propónla; no marques como hecho nada desplegado sin verificarlo con curl."
+  }
+}

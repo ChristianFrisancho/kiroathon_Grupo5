@@ -2,7 +2,7 @@
 
 Fase 1: `LocalSimulatedGenerator` produce una plantilla determinista a partir del módulo. NO es Bedrock
 y la API lo declara en cada respuesta (`generatedBy.isBedrock = false`).
-Fase 2: `BedrockGenerator` implementará la misma interfaz con Amazon Bedrock.
+`BedrockGenerator` (bedrock.py) implementa la misma interfaz con Amazon Bedrock (API Converse).
 """
 from __future__ import annotations
 
@@ -184,29 +184,13 @@ def _fmt(value: float) -> str:
     return ("%.1f" % value).replace(".", ",")
 
 
-class BedrockGenerator(Generator):
-    """Fase 2. Aún no implementado: falla de forma explícita, nunca simula una respuesta."""
-
-    name = "bedrock"
-    is_bedrock = True
-    label = "Amazon Bedrock"
-
-    def _unavailable(self):
-        raise GeneratorError("Amazon Bedrock todavía no está conectado (fase 2).")
-
-    def generate(self, module, context):
-        self._unavailable()
-
-    def adapt(self, module, context, experience):
-        self._unavailable()
-
-    def summarize(self, experience, rating_summary, ratings, comments):
-        self._unavailable()
 
 
-def build_generator(kind: str) -> Generator:
+def build_generator(kind: str, model_id: str = "") -> Generator:
     if kind == "local":
         return LocalSimulatedGenerator()
     if kind == "bedrock":
-        return BedrockGenerator()
+        from .bedrock import BedrockGenerator  # Amazon Bedrock (API Converse)
+
+        return BedrockGenerator(model_id=model_id)
     raise ApiError(500, "bad_config", "Generador no reconocido: %s" % kind)

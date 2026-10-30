@@ -4,7 +4,7 @@ import support  # noqa: F401
 
 from aulalista import seed
 from aulalista.errors import ApiError
-from aulalista.generator import BedrockGenerator, GeneratorError, LocalSimulatedGenerator, split_minutes
+from aulalista.generator import LocalSimulatedGenerator, split_minutes
 from aulalista.validators import (
     normalize_context,
     normalize_materials,
@@ -162,9 +162,6 @@ class GeneratorTests(unittest.TestCase):
                                          "activities", "expectedEvidence"}, set())
         self.assertIn(notes, content["activities"][0]["description"])
 
-    def test_bedrock_aun_no_conectado_falla_de_forma_explicita(self):
-        with self.assertRaises(GeneratorError):
-            BedrockGenerator().generate(MODULE, ctx())
 
 
 if __name__ == "__main__":

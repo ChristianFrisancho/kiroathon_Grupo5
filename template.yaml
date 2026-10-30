@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  AulaLista (equipo T005) - Copiloto del docente público. API Gateway HTTP API + Lambda Python 3.12 +
+  DynamoDB + Amazon Bedrock (API Converse). La misma función entrega el frontend en el mismo dominio.
+
+Parameters:
+  TeamId:
+    Type: String
+    Default: T005
+    Description: Id público del equipo en el portal (lo devuelve GET /health).
+  ModelId:
+    Type: String
+    Default: us.amazon.nova-lite-v1:0
+    Description: Perfil de inferencia de Bedrock usado con la API Converse.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 29
+    MemorySize: 512
+    Architectures: [arm64]
+
+Resources:
+  ItemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
+  AppFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: .
+      Handler: app.handler
+      Description: API de AulaLista y entrega del frontend
+      Environment:
+        Variables:
+          TEAM_ID: !Ref TeamId
+          TABLE_NAME: !Ref ItemsTable
+          MODEL_ID: !Ref ModelId
+          AULALISTA_STORE: dynamodb
+          AULALISTA_GENERATOR: bedrock
+          AULALISTA_JOB_MODE: lazy
+          AULALISTA_DEMO_MODE: "true"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ItemsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource:
+                - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/*
+                - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*
+      Events:
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /
+            Method: ANY
+        Proxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Description: API pública de la demo (sin autenticación; datos simulados)
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 25
+
+Outputs:
+  ApiUrl:
+    Description: URL base pública (sin barra final). Pegarla en Perfil del equipo del portal.
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  TableName:
+    Value: !Ref ItemsTable

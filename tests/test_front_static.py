@@ -41,12 +41,18 @@ class StructureTests(unittest.TestCase):
     def test_el_back_solo_usa_biblioteca_estandar(self):
         stdlib_ok = {"__future__", "json", "re", "os", "sys", "uuid", "copy", "threading", "sqlite3", "typing",
                      "dataclasses", "datetime", "decimal", "fractions", "pathlib", "concurrent", "http",
-                     "urllib", "mimetypes", "aulalista"}
+                     "urllib", "mimetypes", "aulalista", "time", "base64"}
+        # boto3/botocore solo se importan dentro de funciones (disponibles en el runtime de Lambda).
+        aws_lazy = {"boto3", "botocore"}
         for path in (BACK / "aulalista").glob("*.py"):
             for line in path.read_text(encoding="utf-8").splitlines():
-                match = re.match(r"\s*(?:from|import)\s+([A-Za-z_][\w]*)", line)
+                match = re.match(r"(\s*)(?:from|import)\s+([A-Za-z_][\w]*)", line)
                 if match and not line.lstrip().startswith("from ."):
-                    self.assertIn(match.group(1), stdlib_ok, "%s importa %s" % (path.name, match.group(1)))
+                    module = match.group(2)
+                    if module in aws_lazy:
+                        self.assertTrue(match.group(1), "%s importa %s a nivel de módulo" % (path.name, module))
+                        continue
+                    self.assertIn(module, stdlib_ok, "%s importa %s" % (path.name, module))
 
 
 class IndexHtmlTests(unittest.TestCase):
@@ -170,7 +176,7 @@ class FrontendNotesTests(unittest.TestCase):
         return match.group(1).strip()
 
     def test_limites_de_longitud_y_contenido(self):
-        for prefix in ("NOTA:", "GENAI-FASE2:"):
+        for prefix in ("NOTA:", "GENAI:"):
             text = self.line(prefix)
             with self.subTest(prefix=prefix):
                 self.assertLessEqual(len(text), 240, len(text))
@@ -185,8 +191,13 @@ class FrontendNotesTests(unittest.TestCase):
             self.assertIn(label, note)
             self.assertIn(label, ALL_JS_TEXT)
 
-    def test_el_texto_genai_esta_marcado_como_pendiente_de_la_fase_2(self):
-        self.assertIn("No usar este texto hasta la fase 2", self.notes)
+    def test_el_texto_genai_usa_etiquetas_reales_y_existe_bedrock_en_el_codigo(self):
+        text = self.line("GENAI:")
+        for label in ("Preparar clase", "Crear borrador", "Resumir acuerdos"):
+            self.assertIn(label, text)
+            self.assertIn(label, ALL_JS_TEXT)
+        bedrock = (BACK / "aulalista" / "bedrock.py").read_text(encoding="utf-8")
+        self.assertIn(".converse(", bedrock)
 
 
 if __name__ == "__main__":

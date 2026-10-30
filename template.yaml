@@ -112,10 +112,19 @@ Resources:
             Path: /{proxy+}
             Method: ANY
 
+  # Access logs de API Gateway: registran peticiones aunque no lleguen a la Lambda (sin IP ni cuerpo).
+  HttpApiAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       Description: API pública de la demo (sin autenticación; datos simulados)
+      AccessLogSettings:
+        DestinationArn: !GetAtt HttpApiAccessLogs.Arn
+        Format: '{"requestId":"$context.requestId","time":"$context.requestTime","method":"$context.httpMethod","path":"$context.path","status":"$context.status","userAgent":"$context.identity.userAgent","error":"$context.error.message","integrationError":"$context.integrationErrorMessage"}'
       DefaultRouteSettings:
         ThrottlingBurstLimit: 50
         ThrottlingRateLimit: 25
@@ -128,3 +137,5 @@ Outputs:
     Value: !Ref ItemsTable
   JobWorkerName:
     Value: !Ref JobWorkerFunction
+  ApiAccessLogGroup:
+    Value: !Ref HttpApiAccessLogs

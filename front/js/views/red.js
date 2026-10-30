@@ -1,6 +1,7 @@
 import { api, detailsList, operationKey, writeErrorMessage } from '../api.js';
 import { setWorking, state } from '../state.js';
 import { announce, append, clear, errorBox, formatDate, h, ratingLine, simBadge, formatScore } from '../util.js';
+import { ratingRadar } from '../viz.js';
 
 const CRITERIA = [
   ['clarity', '¿Se entendían las instrucciones?', 'Claridad de instrucciones'],
@@ -145,10 +146,22 @@ export async function renderExperiencia({ params, navigate }) {
         h('div', { class: 'field' }, h('label', { for: 'v-change' }, '¿Qué cambiarías?'), change),
         submit, feedback);
 
+    const radarBox = h('figure', { class: 'radar m0' });
+    ratingRadar(radarBox, {
+      criteriaMeans: s.criteriaMeans, ratings: exp.ratings,
+      labels: { clarity: 'Claridad', feasibility: 'Viabilidad', coherence: 'Coherencia', observation: 'Observación' },
+    });
+    if (radarBox.firstChild) {
+      radarBox.appendChild(h('figcaption', { class: 'muted small' },
+        'Naranja: media de las valoraciones completas. Líneas finas: cada valoración. Escala de 1 a 5.'));
+    }
     return h('div', { class: 'card' },
       h('h2', { class: 'm0' }, 'Valoración de uso'),
-      h('p', { class: 'score' }, s.completeCount ? `${formatScore(s.average)}/5` : 'Sin valoración general'),
-      h('p', null, ratingLine(s, exp.isSimulated)),
+      h('div', { class: 'rating-head' },
+        h('div', null,
+          h('p', { class: 'score' }, s.completeCount ? `${formatScore(s.average)}/5` : 'Sin valoración general'),
+          h('p', null, ratingLine(s, exp.isSimulated))),
+        radarBox.firstChild ? radarBox : null),
       s.contexts.length ? h('p', { class: 'muted small' }, `Contextos: ${s.contexts.join(' · ')}`) : null,
       s.lastRatedAt ? h('p', { class: 'muted small' }, `Última valoración: ${formatDate(s.lastRatedAt)}`) : null,
       h('p', { class: 'muted small' }, 'La valoración refleja experiencias declaradas de uso; no prueba mejoras de aprendizaje. Las personas que solo leyeron la actividad dejan un comentario de diseño.'),

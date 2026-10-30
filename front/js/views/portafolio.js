@@ -3,6 +3,7 @@ import {
   clearDraft, draftKey, readDraft, setFlash, setWorking, state, takeFlash, writeDraft,
 } from '../state.js';
 import { lessonSteps, savedNotice } from '../ui.js';
+import { versionTimeline } from '../viz.js';
 import {
   announce, append, clear, disableAll, errorBox, formatDate, h, originBadges, reviewBadge, simBadge, todayIso,
 } from '../util.js';
@@ -143,6 +144,7 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
     const shown = session.versions.find((v) => v.id === shownVersionId) || current;
     const viewingOld = shown.id !== current.id;
     const actionFeedback = h('div');
+    const timelineBox = h('div', { class: 'timeline' });
 
     const continueEdit = () => {
       if (state.working && !window.confirm('Tienes otro borrador sin guardar en este navegador. ¿Reemplazarlo por esta sesión?')) return;
@@ -213,7 +215,8 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
         contentView(shown)),
       h('section', { class: 'card no-print', 'aria-labelledby': 'history-title' },
         h('h2', { id: 'history-title', class: 'm0' }, 'Historial de versiones'),
-        h('p', { class: 'muted small' }, 'Una versión nueva no borra las anteriores. Regenerar o copiar no hereda la revisión.'),
+        h('p', { class: 'muted small' }, 'Una versión nueva no borra las anteriores. Regenerar o copiar no hereda la revisión. Las gotas son registros de aplicación sobre la versión que usaron.'),
+        timelineBox,
         h('ul', { class: 'list' }, [...session.versions].reverse().map((v) =>
           h('li', null,
             h('div', { class: 'row between' },
@@ -226,6 +229,10 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
       recordsSection(),
       shareSection(),
     ]);
+    versionTimeline(timelineBox, {
+      versions: session.versions, records: session.records, currentId: current.id, shownId: shown.id,
+      onSelect: (id) => showVersion(id),
+    });
   }
 
   function recordsSection() {

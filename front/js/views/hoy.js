@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { localCopyAvailable, state } from '../state.js';
 import { clear, errorBox, formatDate, h, reviewBadge } from '../util.js';
+import { journeyFlow } from '../viz.js';
 
 // Hoy + Mi tiempo. La orientación y «Preparar clase» se muestran de inmediato;
 // solo las sesiones recientes dependen de la API.
@@ -10,6 +11,7 @@ export async function renderHoy({ navigate, isCurrent = () => true }) {
   const engineNote = h('p', { class: 'muted small' });
   const pending = state.working;
 
+  const journey = h('div', { class: 'journey' });
   const page = h('div', { class: 'home-page' },
     h('section', { class: 'hero', 'aria-labelledby': 'home-title' },
       h('p', { class: 'eyebrow' }, 'Copiloto del docente público'),
@@ -24,6 +26,7 @@ export async function renderHoy({ navigate, isCurrent = () => true }) {
         h('li', null, h('strong', null, 'Preparar: '), 'confirma grado, minutos y materiales.'),
         h('li', null, h('strong', null, 'Revisar: '), 'corrige el borrador; tú decides la versión.'),
         h('li', null, h('strong', null, 'Portafolio: '), 'recupera tu sesión y registra cómo te fue.')),
+      journey,
       h('p', { class: 'muted small m0' }, 'La IA prepara; tú decides. Demostración con datos simulados.')),
     state.discardedCorrupt
       ? h('p', { class: 'alert warn' }, 'Encontramos una copia local dañada en este navegador y no pudimos usarla.')
@@ -82,5 +85,6 @@ export async function renderHoy({ navigate, isCurrent = () => true }) {
   }
 
   void loadRecent();
+  journeyFlow(journey);
   return page;
 }

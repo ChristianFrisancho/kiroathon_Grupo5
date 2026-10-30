@@ -1,6 +1,7 @@
 import { api, detailsList, operationKey, writeErrorMessage } from '../api.js';
 import { clearWorking, localCopyAvailable, persistWorking, setFlash, state } from '../state.js';
 import { lessonSteps } from '../ui.js';
+import { referenceMap, timeBudget } from '../viz.js';
 import { announce, clear, disableAll, engineBadge, errorBox, h } from '../util.js';
 
 const MAX_MATERIALS = 20;
@@ -37,6 +38,10 @@ export async function renderRevisar({ navigate, isCurrent = () => true }) {
   const sumBox = h('p', { role: 'status' });
   const blockers = h('div', { class: 'small' });
   const activitiesBox = h('div');
+  const budgetBox = h('div', { class: 'budget' });
+  const refsBox = h('div', { class: 'refs-map' });
+  let budget = { update() {} };
+  let refMap = { update() {} };
   const localNote = h('p', { class: 'muted small' });
   const saveDraft = h('button', { type: 'button', class: 'btn', onclick: () => save(false) }, 'Guardar borrador');
   const saveReviewed = h('button', { type: 'button', class: 'btn primary big', onclick: () => save(true) }, 'Guardar versión revisada');
@@ -89,6 +94,8 @@ export async function renderRevisar({ navigate, isCurrent = () => true }) {
     const blocked = saving || list.length > 0;
     saveDraft.disabled = blocked;
     saveReviewed.disabled = blocked;
+    budget.update();
+    refMap.update();
     localNote.textContent = localCopyAvailable()
       ? 'Cambios pendientes de guardar · copia local en este navegador (aún no está en Mi portafolio).'
       : 'Cambios pendientes de guardar · este navegador no permite copias locales: guarda antes de cerrar la pestaña.';
@@ -296,7 +303,13 @@ export async function renderRevisar({ navigate, isCurrent = () => true }) {
         h('textarea', { id: 'f-purpose', oninput: (e) => { content.purpose = e.target.value; touch(); } }, content.purpose))),
     h('section', { class: 'card', 'aria-labelledby': 'acts-title' },
       h('div', { class: 'row between' }, h('h2', { id: 'acts-title', class: 'm0' }, 'Actividades con tiempos'), sumBox),
+      h('p', { class: 'muted small' }, 'Arrastra el borde entre dos actividades para pasar minutos de una a otra, o edita cada campo «Minutos».'),
+      budgetBox,
       activitiesBox),
+    h('section', { class: 'card', 'aria-labelledby': 'refs-title' },
+      h('h2', { id: 'refs-title', class: 'm0' }, 'Sustento en el módulo'),
+      h('p', { class: 'muted small' }, 'Cada línea une un fragmento del módulo con la actividad que lo cita. Cambia las referencias en cada actividad.'),
+      refsBox),
     h('div', { class: 'card stack' },
       h('div', { class: 'field' },
         h('label', { for: 'f-evidence' }, 'Evidencia esperada'),
@@ -347,6 +360,23 @@ export async function renderRevisar({ navigate, isCurrent = () => true }) {
       feedback),
     h('p', { class: 'muted small' }, 'Guardar no significa haber impartido la clase. Después podrás registrar lo que observes al aplicarla.'));
 
+  budget = timeBudget(budgetBox, {
+    getActivities: () => content.activities,
+    getTotal: () => w.context.durationMinutes,
+    isLocked: () => saving,
+    onShift: (i, a, b, done) => {
+      content.activities[i].minutes = a;
+      content.activities[i + 1].minutes = b;
+      [[i, a], [i + 1, b]].forEach(([k, v]) => {
+        const input = document.getElementById(`act-min-${k}`);
+        if (input) input.value = String(v);
+        const badge = input && input.closest('.activity').querySelector('.badge');
+        if (badge) badge.textContent = `${v} min`;
+      });
+      if (done) touch();
+    },
+  });
+  refMap = referenceMap(refsBox, { fragments: module.fragments, getActivities: () => content.activities });
   paintActivities();
   sync();
   return page;

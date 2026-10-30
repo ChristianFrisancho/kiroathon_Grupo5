@@ -24,7 +24,7 @@ class Settings:
     store: str = "sqlite"   # "sqlite" (local) | "dynamodb" (Lambda)
     table_name: str = ""
     model_id: str = DEFAULT_MODEL_ID
-    job_mode: str = "thread"  # "thread" (servidor local) | "lazy" (Lambda: se resuelve al leer)
+    job_mode: str = "thread"  # "thread" (servidor local) | "lambda" (worker Lambda asíncrono)
 
 
 def load_settings(env=None) -> Settings:

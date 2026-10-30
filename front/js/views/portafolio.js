@@ -1,10 +1,10 @@
-import { api, detailsList, writeErrorMessage } from '../api.js';
+import { api, detailsList, operationKey, writeErrorMessage } from '../api.js';
 import {
   clearDraft, draftKey, readDraft, setFlash, setWorking, state, takeFlash, writeDraft,
 } from '../state.js';
 import { lessonSteps, savedNotice } from '../ui.js';
 import {
-  announce, append, clear, disableAll, engineBadge, errorBox, formatDate, h, reviewBadge, simBadge, todayIso,
+  announce, append, clear, disableAll, errorBox, formatDate, h, originBadges, reviewBadge, simBadge, todayIso,
 } from '../util.js';
 
 // Mi portafolio: lista de sesiones guardadas en el servidor. Vacío y error se distinguen.
@@ -99,6 +99,13 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
   const putDraft = (key, value) => { memory[key] = value; writeDraft(key, value); };
   const dropDraft = (key) => { delete memory[key]; clearDraft(key); };
   let recordVersionId = session.currentVersionId;
+  let recordVersionChosen = false; // si el docente no eligió, el registro sigue a la versión mostrada
+  const ops = {}; // claves de operación por formulario (reintento del mismo contenido = misma clave)
+  const showVersion = (id) => {
+    shownVersionId = id;
+    if (!recordVersionChosen) recordVersionId = id;
+    paint();
+  };
 
   function reload(next, message) {
     session = next;
@@ -140,7 +147,7 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
     const continueEdit = () => {
       if (state.working && !window.confirm('Tienes otro borrador sin guardar en este navegador. ¿Reemplazarlo por esta sesión?')) return;
       setWorking({
-        sessionId: session.id, moduleId: session.moduleId,
+        sessionId: session.id, moduleId: session.moduleId, parentVersionId: current.id, draftId: null, reviewNotes: [],
         context: JSON.parse(JSON.stringify(current.context)),
         content: JSON.parse(JSON.stringify(current.content)),
         generatedBy: current.generatedBy,
@@ -157,7 +164,7 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
       notice ? savedNotice(notice) : null,
       h('div', { class: 'row' }, reviewBadge(current.reviewStatus),
         h('span', { class: 'badge' }, `Versión vigente: ${current.number} de ${session.versions.length}`),
-        engineBadge(current.generatedBy), h('span', { class: 'badge saved' }, 'Guardado en Mi portafolio')),
+        originBadges(current), h('span', { class: 'badge saved' }, 'Guardado en Mi portafolio')),
       session.provenance && session.provenance.type === 'adaptacion'
         ? h('p', { class: 'alert info' }, `Adaptación de «${session.provenance.title}», compartida por ${session.provenance.authorLabel}. `,
             h('a', { href: `#/red/${session.provenance.experienceId}` }, 'Ver experiencia original'))
@@ -176,7 +183,9 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
         h('button', {
           type: 'button', class: 'btn',
           onclick: async () => {
-            const next = await write(() => api.post(`/api/sessions/${session.id}/copy`, { versionId: shown.id }), actionFeedback, 'crear la copia');
+            const body = { versionId: shown.id };
+            const next = await write(() => api.post(`/api/sessions/${session.id}/copy`,
+              { ...body, operationKey: operationKey(ops.copy || (ops.copy = {}), body) }), actionFeedback, 'crear la copia');
             if (next && isCurrent()) { setFlash(`Copia de la versión ${shown.number} guardada como borrador`); navigate(`/portafolio/${next.id}`); }
           },
         }, `Crear copia de la versión ${shown.number}`),
@@ -184,7 +193,7 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
           type: 'button', class: 'btn',
           onclick: async (e) => {
             e.target.textContent = 'Regenerando…';
-            const next = await write(() => api.post(`/api/sessions/${session.id}/regenerate`, {}), actionFeedback, 'regenerar');
+            const next = await write(() => api.post(`/api/sessions/${session.id}/regenerate`, { parentVersionId: current.id }), actionFeedback, 'regenerar');
             if (next && isCurrent()) reload(next, 'Nueva versión regenerada guardada como borrador');
             else if (isCurrent()) e.target.textContent = 'Regenerar borrador';
           },
@@ -196,7 +205,7 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
           ? h('p', { class: 'alert warn m0', role: 'status' },
               h('strong', null, `Estás viendo la versión ${shown.number}. `),
               `La versión vigente es la ${current.number}. `,
-              h('button', { type: 'button', class: 'btn ghost', onclick: () => { shownVersionId = current.id; paint(); } }, 'Ver la versión vigente'))
+              h('button', { type: 'button', class: 'btn ghost', onclick: () => showVersion(current.id) }, 'Ver la versión vigente'))
           : null,
         h('div', { class: 'row between' },
           h('h2', { id: 'shown-title', class: 'm0' }, `Versión ${shown.number}${viewingOld ? '' : ' (vigente)'}`), reviewBadge(shown.reviewStatus)),
@@ -212,7 +221,7 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
               h('div', { class: 'row' }, reviewBadge(v.reviewStatus),
                 h('button', {
                   type: 'button', class: 'btn', 'aria-pressed': v.id === shown.id ? 'true' : 'false',
-                  onclick: () => { shownVersionId = v.id; paint(); },
+                  onclick: () => showVersion(v.id),
                 }, v.id === shown.id ? `Mostrando versión ${v.number}` : `Ver versión ${v.number}`))))))),
       recordsSection(),
       shareSection(),
@@ -235,11 +244,20 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
     const next = h('textarea', { id: 'r-next', placeholder: 'Qué cambiarías la próxima vez' });
     next.value = draft.nextAdjustment || '';
     const submit = h('button', { type: 'submit', class: 'btn primary' }, 'Guardar registro');
-    const persist = () => putDraft(key, {
-      declaredDate: date.value, activity: activity.value, observation: observation.value, nextAdjustment: next.value,
-    });
+    const persist = () => {
+      // En cuanto el docente escribe, el registro queda fijo en esta versión aunque consulte otra.
+      if (activity.value || observation.value || next.value) recordVersionChosen = true;
+      putDraft(key, {
+        declaredDate: date.value, activity: activity.value, observation: observation.value, nextAdjustment: next.value,
+      });
+    };
     [date, activity, observation, next].forEach((el) => el.addEventListener('input', persist));
-    versionSelect.addEventListener('change', () => { recordVersionId = versionSelect.value; paint(); document.getElementById('r-version').focus(); });
+    versionSelect.addEventListener('change', () => {
+      recordVersionId = versionSelect.value;
+      recordVersionChosen = true;
+      paint();
+      document.getElementById('r-version').focus();
+    });
 
     const form = h('form', {
       class: 'stack', novalidate: true,
@@ -264,10 +282,12 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
           observation: observation.value, nextAdjustment: next.value,
         };
         submit.textContent = 'Guardando…';
-        const saved = await write(() => api.post(`/api/sessions/${session.id}/records`, body), feedback, 'guardar el registro');
+        const keyed = { ...body, operationKey: operationKey(ops.record || (ops.record = {}), body) };
+        const saved = await write(() => api.post(`/api/sessions/${session.id}/records`, keyed), feedback, 'guardar el registro');
         if (!isCurrent()) return;
         if (saved) {
           dropDraft(key);
+          ops.record = null;
           let fresh = null;
           try { fresh = await api.get(`/api/sessions/${session.id}`); } catch (e) { /* abajo */ }
           if (!isCurrent()) return;
@@ -351,10 +371,12 @@ export async function renderSesion({ params, navigate, isCurrent = () => true, s
             box.focus();
             return;
           }
-          const experience = await write(() => api.post(`/api/sessions/${session.id}/share`, {
+          const shareBody = {
             versionId: current.id, confirm: true, purpose: purpose.value, description: description.value,
             observation: observation.value, improvement: improvement.value,
-          }), feedback, 'compartir');
+          };
+          const experience = await write(() => api.post(`/api/sessions/${session.id}/share`,
+            { ...shareBody, operationKey: operationKey(ops.share || (ops.share = {}), shareBody) }), feedback, 'compartir');
           if (experience && isCurrent()) { dropDraft(key); navigate(`/red/${experience.id}`); }
         },
       },

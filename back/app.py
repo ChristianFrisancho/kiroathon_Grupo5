@@ -1,15 +1,19 @@
 """Punto de entrada de AWS Lambda (API Gateway HTTP API, payload 2.0).
 
 Una sola función atiende la API (`/health`, `/items`, `/jobs`, `/api/...`) y entrega el frontend de `front/`
-en el mismo dominio. Variables (definidas en template.yaml): TEAM_ID, TABLE_NAME, MODEL_ID.
+en el mismo dominio. Variables (template.yaml): TEAM_ID, TABLE_NAME, MODEL_ID, JOB_WORKER_FUNCTION.
+
+Cada petición fija un plazo con `context.get_remaining_time_in_millis()` (budget.py) para que Bedrock no
+consuma el tiempo que hace falta para validar, guardar y responder.
 """
 from __future__ import annotations
 
 import base64
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
+from aulalista import budget
 from aulalista.api import handle_request, is_api_path
 from aulalista.config import Settings, load_settings
 from aulalista.factory import build_service
@@ -24,9 +28,24 @@ def lambda_settings() -> Settings:
     env = dict(os.environ)
     env.setdefault("AULALISTA_STORE", "dynamodb")
     env.setdefault("AULALISTA_GENERATOR", "bedrock")
-    env.setdefault("AULALISTA_JOB_MODE", "lazy")
+    env.setdefault("AULALISTA_JOB_MODE", "lambda")
     env.setdefault("AULALISTA_FRONT_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "front"))
     return load_settings(env)
+
+
+def lambda_dispatcher(function_name: str) -> Callable[[str], None]:
+    """Invoca el worker de forma asíncrona (InvocationType=Event). No espera su resultado."""
+    import boto3
+
+    client = boto3.client("lambda")
+
+    def dispatch(job_id: str) -> None:
+        response = client.invoke(FunctionName=function_name, InvocationType="Event",
+                                 Payload=json.dumps({"jobId": job_id}).encode("utf-8"))
+        if response.get("StatusCode") != 202:
+            raise RuntimeError("El worker no aceptó el trabajo (estado %s)." % response.get("StatusCode"))
+
+    return dispatch
 
 
 def get_service() -> Service:
@@ -34,7 +53,8 @@ def get_service() -> Service:
     global _service, _settings
     if _service is None:
         _settings = lambda_settings()
-        _service = build_service(_settings)
+        worker = os.environ.get("JOB_WORKER_FUNCTION")
+        _service = build_service(_settings, dispatcher=lambda_dispatcher(worker) if worker else None)
     return _service
 
 
@@ -51,9 +71,14 @@ def handler(event: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     target = path + ("?" + query if query else "")
 
     if is_api_path(path):
-        raw = event.get("body") or ""
-        raw_bytes = base64.b64decode(raw) if event.get("isBase64Encoded") else raw.encode("utf-8")
-        status, payload = handle_request(get_service(), method, target, event.get("headers") or {}, raw_bytes)
+        remaining = context.get_remaining_time_in_millis() if hasattr(context, "get_remaining_time_in_millis") else None
+        budget.set_deadline_from_remaining_ms(remaining)
+        try:
+            raw = event.get("body") or ""
+            raw_bytes = base64.b64decode(raw) if event.get("isBase64Encoded") else raw.encode("utf-8")
+            status, payload = handle_request(get_service(), method, target, event.get("headers") or {}, raw_bytes)
+        finally:
+            budget.set_deadline(None)
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         return _response(status, body, "application/json; charset=utf-8", "no-store")
 

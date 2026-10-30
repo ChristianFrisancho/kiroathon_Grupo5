@@ -13,6 +13,7 @@ from pathlib import Path
 import support  # noqa: F401  (añade back/ a sys.path)
 
 import app
+import worker
 from aulalista import bedrock as bedrock_module
 from aulalista.bedrock import BedrockGenerator, extract_json
 from aulalista.dynamo_repository import DynamoRepository
@@ -24,49 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # ---------------------------------------------------------------------------
 # Dobles de prueba
 # ---------------------------------------------------------------------------
-class FakeTable:
-    """Imita los métodos de boto3 Table que usa DynamoRepository. Pagina de 2 en 2 para probar la paginación."""
-
-    page_size = 2
-
-    def __init__(self):
-        self.rows = {}
-        self.query_calls = 0
-
-    def put_item(self, Item):
-        assert isinstance(Item["doc"], str)
-        self.rows[(Item["pk"], Item["sk"])] = dict(Item)
-
-    def get_item(self, Key, ConsistentRead=False):
-        assert ConsistentRead is True, "las lecturas deben ser consistentes"
-        found = self.rows.get((Key["pk"], Key["sk"]))
-        return {"Item": dict(found)} if found else {}
-
-    def query(self, KeyConditionExpression, ExpressionAttributeValues, ExclusiveStartKey=None, ConsistentRead=False):
-        assert KeyConditionExpression == "pk = :pk"
-        assert ConsistentRead is True, "las lecturas deben ser consistentes"
-        self.query_calls += 1
-        pk = ExpressionAttributeValues[":pk"]
-        keys = sorted(sk for (p, sk) in self.rows if p == pk)
-        if ExclusiveStartKey:
-            keys = [k for k in keys if k > ExclusiveStartKey["sk"]]
-        page = keys[: self.page_size]
-        result = {"Items": [dict(self.rows[(pk, k)]) for k in page]}
-        if len(keys) > self.page_size:
-            result["LastEvaluatedKey"] = {"pk": pk, "sk": page[-1]}
-        return result
-
-
-class ClientError(Exception):
-    """Imita botocore.exceptions.ClientError (atributo `response`)."""
-
-    def __init__(self, code):
-        super().__init__(code)
-        self.response = {"Error": {"Code": code, "Message": code}}
-
-
-class ReadTimeoutError(Exception):
-    pass
+from fakes import ClientError, FakeBedrock, FakeDynamoClient, ReadTimeoutError  # noqa: E402
 
 
 def lesson_json(minutes=(10, 15, 12, 8), refs=(["M1"], ["M1", "M2"], ["M2"], ["M3"])):
@@ -74,27 +33,12 @@ def lesson_json(minutes=(10, 15, 12, 8), refs=(["M1"], ["M1", "M2"], ["M2"], ["M
         "title": "Escuchamos y comprobamos lo que entendimos",
         "purpose": "Practicar la escucha activa y el parafraseo en parejas.",
         "activities": [
-            {"title": "Actividad %d" % (i + 1), "minutes": m, "description": "Descripción %d" % (i + 1),
+            {"title": "Actividad %d" % (i + 1), "minutes": m, "description": "Las parejas conversan y practican la actividad %d." % (i + 1),
              "references": list(r)}
             for i, (m, r) in enumerate(zip(minutes, refs))
         ],
         "expectedEvidence": "Cada estudiante parafrasea una idea de su pareja y pregunta si la entendió bien.",
     }, ensure_ascii=False)
-
-
-class FakeBedrock:
-    """Cliente bedrock-runtime simulado. `script` es una lista de textos o excepciones, en orden."""
-
-    def __init__(self, *script):
-        self.script = list(script)
-        self.calls = []
-
-    def converse(self, **kwargs):
-        self.calls.append(kwargs)
-        step = self.script.pop(0) if len(self.script) > 1 else self.script[0]
-        if isinstance(step, Exception):
-            raise step
-        return {"output": {"message": {"role": "assistant", "content": [{"text": step}]}}}
 
 
 # ---------------------------------------------------------------------------
@@ -124,12 +68,14 @@ class LambdaTestCase(unittest.TestCase):
         self.env = {"TEAM_ID": self.team, "TABLE_NAME": "tabla-falsa", "MODEL_ID": "modelo-de-prueba"}
         self._old_env = {k: app.os.environ.get(k) for k in self.env}
         app.os.environ.update(self.env)
-        self.table = FakeTable()
+        self.db = FakeDynamoClient()
         self.bedrock = FakeBedrock(lesson_json())
         self.sleeps = []
+        self.dispatched = []
         settings = app.lambda_settings()
         generator = BedrockGenerator(model_id=settings.model_id, client=self.bedrock, sleep=self.sleeps.append)
-        self.service = Service(DynamoRepository(self.table), generator, settings)
+        self.service = Service(DynamoRepository(self.db, "tabla-falsa"), generator, settings,
+                               dispatcher=self.dispatched.append)
         app._service, app._settings = self.service, settings  # monkeypatch del servicio global
 
     def tearDown(self):
@@ -165,7 +111,7 @@ class HealthTests(LambdaTestCase):
         app.os.environ["TEAM_ID"] = "T999"
         app._service = None  # nuevo contenedor de Lambda
         original = app.build_service
-        app.build_service = lambda settings: Service(DynamoRepository(FakeTable()), BedrockGenerator(client=self.bedrock), settings)
+        app.build_service = lambda settings, **kw: Service(DynamoRepository(FakeDynamoClient(), "t"), BedrockGenerator(client=self.bedrock), settings, **kw)
         try:
             self.assertEqual(self.call("GET", "/health")[1]["team"], "T999")
         finally:
@@ -199,14 +145,15 @@ class ItemsTests(LambdaTestCase):
         self.assertEqual(status, 200)
         self.assertIn(nonce, [i["value"] for i in listing])
         # Quedó guardado en la tabla (ItemsTable), no en memoria.
-        self.assertIn(("ITEM", created["id"]), self.table.rows)
+        self.assertIn(("ITEM", created["id"]), self.db.rows)
 
     def test_la_lista_pagina_toda_la_tabla(self):
         ids = [self.call("POST", "/items", {"value": "v%d" % i})[1]["id"] for i in range(7)]
-        before = self.table.query_calls
+        before = len(self.db.calls)
         listing = self.call("GET", "/items")[1]
         self.assertEqual(set(ids), {i["id"] for i in listing})
-        self.assertGreaterEqual(self.table.query_calls - before, 4)  # 7 ítems / 2 por página
+        queries = [c for c in self.db.calls[before:] if c == ("query", "ITEMS_BY_TIME")]
+        self.assertEqual(len(queries), 4)  # 7 ítems / 2 por página: pagina hasta el final
 
     def test_la_lista_trae_primero_los_recientes_y_maximo_100(self):
         for i in range(103):
@@ -231,33 +178,47 @@ class ItemsTests(LambdaTestCase):
 # Insignia «Asíncrono»
 # ---------------------------------------------------------------------------
 class JobsTests(LambdaTestCase):
-    def test_job_responde_202_y_queda_done_antes_de_12_segundos(self):
+    def run_worker(self, job_id):
+        worker.get_repo = lambda: self.service.repo  # el worker usa la misma tabla (falsa)
+        return worker.handler({"jobId": job_id}, None)
+
+    def test_post_202_despacha_y_el_worker_termina_sin_que_nadie_consulte(self):
         nonce = "abc1"
         status, job, _ = self.call("POST", "/jobs", {"input": nonce})
         self.assertEqual(status, 202)
-        self.assertTrue(job["jobId"])
-        stored = json.loads(self.table.rows[("JOB", job["jobId"])]["doc"])
+        self.assertEqual(self.dispatched, [job["jobId"]])
+        stored = json.loads(self.db.rows[("JOB", job["jobId"])]["doc"]["S"])
         self.assertEqual(stored["status"], "queued")
-        status, first, _ = self.call("GET", "/jobs/%s" % job["jobId"])
-        self.assertEqual(status, 200)
-        self.assertIn(first["status"], ("queued", "done"))
-        deadline = time.time() + 12
-        result = first
-        while result["status"] != "done" and time.time() < deadline:
-            time.sleep(0.25)
-            result = self.call("GET", "/jobs/%s" % job["jobId"])[1]
-        self.assertEqual(result, {"jobId": job["jobId"], "status": "done", "output": "1cba"})
-        # El resultado quedó persistido.
-        self.assertEqual(json.loads(self.table.rows[("JOB", job["jobId"])]["doc"])["status"], "done")
-
-    def test_queued_antes_de_su_hora_y_done_despues(self):
-        clock = ["2026-10-30T17:00:00.000+00:00"]
-        self.service.clock = lambda: clock[0]
-        job = self.call("POST", "/jobs", {"input": "Día-ñ"})[1]
-        self.assertEqual(self.call("GET", "/jobs/%s" % job["jobId"])[1]["status"], "queued")
-        clock[0] = "2026-10-30T17:00:01.500+00:00"
+        self.assertEqual(self.run_worker(job["jobId"])["status"], "done")  # sin ningún GET previo
+        stored = json.loads(self.db.rows[("JOB", job["jobId"])]["doc"]["S"])
+        self.assertEqual((stored["status"], stored["output"]), ("done", "1cba"))
         self.assertEqual(self.call("GET", "/jobs/%s" % job["jobId"])[1],
-                         {"jobId": job["jobId"], "status": "done", "output": "ñ-aíD"})
+                         {"jobId": job["jobId"], "status": "done", "output": "1cba"})
+
+    def test_get_solo_lee_el_estado(self):
+        job = self.call("POST", "/jobs", {"input": "Día-ñ"})[1]
+        for _ in range(3):
+            self.assertEqual(self.call("GET", "/jobs/%s" % job["jobId"])[1]["status"], "queued")
+        self.run_worker(job["jobId"])
+        self.assertEqual(self.call("GET", "/jobs/%s" % job["jobId"])[1]["output"], "ñ-aíD")
+
+    def test_worker_idempotente_ante_entregas_repetidas(self):
+        job = self.call("POST", "/jobs", {"input": "xyz"})[1]
+        self.run_worker(job["jobId"])
+        writes = len([c for c in self.db.calls if c == ("put_item", "JOB")])
+        self.assertEqual(self.run_worker(job["jobId"])["status"], "done")
+        self.assertEqual(len([c for c in self.db.calls if c == ("put_item", "JOB")]), writes)
+        self.assertEqual(self.run_worker("job-inexistente")["status"], "not_found")
+        self.assertEqual(worker.handler({}, None)["status"], "ignored")
+
+    def test_fallo_de_despacho_no_queda_en_queued(self):
+        def broken(job_id):
+            raise ClientError("ServiceException")
+        self.service.dispatcher = broken
+        status, body, _ = self.call("POST", "/jobs", {"input": "abc"})
+        self.assertEqual((status, body["error"]["code"]), (503, "job_dispatch_failed"))
+        job_id = body["error"]["details"]["jobId"]
+        self.assertEqual(self.call("GET", "/jobs/%s" % job_id)[1]["status"], "failed")
 
     def test_job_invalido_o_inexistente(self):
         self.assertEqual(self.call("POST", "/jobs", {})[0], 422)
@@ -300,8 +261,11 @@ class BedrockFlowTests(LambdaTestCase):
 
     def test_referencias_y_materiales_inventados_se_descartan(self):
         self.bedrock.script = [lesson_json(refs=(["M9"], ["M1"], ["M2"], ["M3"]))]
-        content = self.generate()[1]["content"]
+        draft = self.generate()[1]
+        content = draft["content"]
         self.assertEqual(content["activities"][0]["references"], [])
+        self.assertTrue(any("M9" in n for n in draft["reviewNotes"]))
+        self.assertTrue(any("actividad 1 no cita" in n.lower() for n in draft["reviewNotes"]))
         self.assertEqual(content["materials"], ["pizarra", "papel", "lápiz"])
 
     def test_json_entre_texto_o_bloque_de_codigo(self):
@@ -361,14 +325,16 @@ class BedrockFlowTests(LambdaTestCase):
         draft = self.generate()[1]
         status, session, _ = self.call("POST", "/api/sessions", {
             "moduleId": draft["module"]["id"], "context": draft["context"], "content": draft["content"],
-            "markReviewed": True, "generatedBy": draft["generatedBy"]})
+            "markReviewed": True, "draftId": draft["draftId"]})
         self.assertEqual(status, 201)
         self.assertTrue(session["currentVersion"]["generatedBy"]["isBedrock"])
+        self.assertFalse(session["currentVersion"]["editedByTeacher"])
+        self.assertEqual(len(self.bedrock.calls), 1)  # guardar no vuelve a llamar al modelo
         status, rec, _ = self.call("POST", "/api/sessions/%s/records" % session["id"], {
             "declaredDate": "2026-10-30", "activity": "Parejas", "observation": "Observación simulada"})
         self.assertEqual(status, 201)
         # Otro contenedor de Lambda (servicio nuevo) sobre la misma tabla recupera todo.
-        fresh = Service(DynamoRepository(self.table), BedrockGenerator(client=self.bedrock), app.lambda_settings())
+        fresh = Service(DynamoRepository(self.db, "tabla-falsa"), BedrockGenerator(client=self.bedrock), app.lambda_settings())
         app._service = fresh
         listing = self.call("GET", "/api/sessions")[1]
         self.assertEqual([s["id"] for s in listing], [session["id"]])

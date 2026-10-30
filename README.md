@@ -8,13 +8,14 @@ Un docente de colegio público necesita convertir el contenido de un curso en un
 
 ## Estado
 
-| Elemento | Estado |
-|---|---|
-| Backend (`back/`) y frontend (`front/`) | Implementados, probados y desplegados |
-| Amazon Bedrock (Converse, `us.amazon.nova-lite-v1:0`) | En el flujo central; verificado contra la URL desplegada |
-| DynamoDB `ItemsTable` | Persistencia de sesiones, versiones, registros, valoraciones, items y jobs |
-| Contratos `/health`, `/items`, `/jobs` | Verificados con curl contra la URL desplegada |
-| Voz con Transcribe | No implementada (opcional) |
+| Elemento | Implementado y probado en local | Desplegado y verificado en la URL pública |
+|---|---|---|
+| Recorrido módulo → borrador → revisión → portafolio → registro | Sí (16 pruebas en Chromium) | Versión anterior (fase 2) |
+| Amazon Bedrock (Converse, `us.amazon.nova-lite-v1:0`) | Sí, con cliente simulado | Sí, generación real verificada con la fase 2 |
+| Guardados atómicos, 409 ante conflicto, procedencia verificada por el servidor, claves de operación | Sí | **No desplegado** |
+| Worker Lambda de `/jobs` (GET solo lee) | Sí, worker probado sin AWS | **No desplegado**: la URL usa todavía resolución al leer |
+| Contratos `/health`, `/items`, `/jobs` | Sí | Sí (fase 2), con curl |
+| Voz con Transcribe | No implementada (opcional) | — |
 
 No se entrevistó a docentes ni se midió ahorro de tiempo o mejora educativa. Todos los datos son simulados y no hay integración con APRENDE PERÚ.
 
@@ -29,30 +30,41 @@ No se entrevistó a docentes ni se midió ahorro de tiempo o mejora educativa. T
 
 ## GenAI con propósito (`back/aulalista/bedrock.py`)
 
-- Prompts de sistema con el rol (docente de colegio público), las reglas, el límite de longitud (400 caracteres por actividad, 120 palabras por resumen), el tono y la salida JSON. El módulo y las indicaciones van entre etiquetas como datos, nunca como instrucciones.
-- La entrada se valida antes de llamar al modelo: si falta el grado, la duración está fuera de 10–180 o las indicaciones pasan de 500 caracteres, responde un error sin llamar al modelo.
-- Una ThrottlingException se reintenta con espera.
-- Si el modelo no responde, se entrega un borrador de **respaldo local rotulado**, y el flujo sigue.
-- Otros errores responden **502** con un mensaje comprensible.
-- La salida pasa por una validación determinista y por la revisión del docente antes de guardarse.
+- **Prompts de sistema:** rol (docente de colegio público), reglas, límites de longitud como objetivos (400 caracteres por actividad, 120 palabras por resumen), tono y salida JSON. El módulo y las indicaciones van entre etiquetas como datos, nunca como instrucciones.
+- **Entrada:** se valida antes de llamar al modelo; si es inválida, el modelo no se invoca.
+- **Tiempos:** el plazo sale de la Lambda (`get_remaining_time_in_millis`) menos una reserva. El SDK no reintenta; ThrottlingException se reintenta solo si queda margen; sin margen, o si el modelo no responde, se entrega un **respaldo local rotulado**. Permisos, validación o una salida truncada responden **502**.
+- **Salida:**
+  - Se quitan las referencias inventadas, con aviso. Si ninguna actividad cita el módulo, es error.
+  - Se avisa de recursos mencionados que no se declararon, para revisión humana.
+  - Los minutos se reescalan con un mínimo de 1.
+  - La pertinencia pedagógica la revisa el docente.
+- **Procedencia:** el servidor emite el borrador con `draftId` y al guardar deriva `generatedBy` y `editedByTeacher`. El navegador no puede atribuir un texto a Bedrock, y guardar no vuelve a llamar al modelo.
+
+## Integridad de datos
+
+- Añadir una versión es atómico y condicionado a la versión de partida (SQLite: transacción con `UPDATE … WHERE current_version_id`; DynamoDB: TransactWriteItems con la condición `#doc = :expected` y un marcador por número de versión). Dos guardados desde la misma versión dan uno confirmado y un 409.
+- Un fallo de escritura no deja versiones huérfanas. Actualizar fechas o conteos no restaura una versión vigente antigua.
+- Las escrituras del frontend llevan `operationKey`: tras perder una confirmación, el mismo reintento devuelve el resultado ya guardado.
 
 ## Arquitectura (template.yaml)
 
-API Gateway HTTP API → una Lambda Python 3.12 (`back/app.py`, sirve la API y el front en el mismo dominio) → DynamoDB `ItemsTable` + Amazon Bedrock. Parámetros: `TeamId` (→ `TEAM_ID`) y `ModelId` (→ `MODEL_ID`). Output: `ApiUrl`.
+API Gateway HTTP API → `AppFunction` (Python 3.12, 29 s; sirve la API y el front en el mismo dominio) → DynamoDB `ItemsTable` + Amazon Bedrock. `AppFunction` invoca de forma asíncrona `JobWorkerFunction` (`back/worker.py`), que solo accede a la tabla. Permisos: InvokeModel solo sobre el perfil `ModelId` y el modelo `FoundationModelId`; InvokeFunction solo sobre el worker. Output: `ApiUrl`.
 
 ## Ejecutar y probar
 
 ```bash
 python3 back/run.py                      # local: http://127.0.0.1:8000 (SQLite + plantilla local)
-python3 -m unittest discover -s tests    # todas las pruebas; DynamoDB y Bedrock simulados
+python3 -m unittest discover -s tests    # todas las pruebas; DynamoDB y Bedrock simulados (tests/fakes.py)
 ```
 
-Las pruebas son clases `unittest`, que pytest también descubre (`python -m pytest -q tests`); en este entorno pytest no está instalado.
+- `tests/test_integrity.py`: reproducciones de la auditoría (concurrencia, escrituras parciales, procedencia, idempotencia, tiempos, consultas, salida de IA, migración).
+- `tests/test_browser.py`: recorrido real en Chromium. Requiere `python3 -m pip install --user playwright && python3 -m playwright install chromium`; si no está, esas pruebas se omiten.
+- Las pruebas son clases `unittest`, que pytest también descubre; en este entorno pytest no está instalado.
 
 ## Desplegar
 
 ```bash
-python3 scripts/build_lambda.py          # equivale a `sam build` (Makefile) sin necesitar make
+python3 scripts/build_lambda.py          # equivale a `sam build` (Makefile): valida y reemplaza .aws-sam/build al final
 sam deploy --template-file .aws-sam/build/template.yaml --stack-name aulalista-t005 --region us-east-1 \
   --s3-bucket <bucket propio> --s3-prefix aulalista --capabilities CAPABILITY_IAM \
   --parameter-overrides TeamId=T005 --no-confirm-changeset --no-fail-on-empty-changeset

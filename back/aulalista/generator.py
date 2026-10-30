@@ -16,15 +16,24 @@ class GeneratorError(Exception):
 
 
 def split_minutes(total: int, weights: Sequence[int]) -> List[int]:
-    """Reparte `total` en enteros proporcionales a `weights` (método del mayor resto). La suma es exacta."""
+    """Reparte `total` en enteros ≥ 1 proporcionales a `weights` (mayor resto). La suma es exacta.
+
+    Primero asigna 1 minuto a cada actividad y reparte el resto en proporción: ninguna queda en 0.
+    Si hay más actividades que minutos no hay reparto válido y se lanza ValueError.
+    """
+    count = len(weights)
+    if count == 0 or total < count:
+        raise ValueError("No se pueden repartir %d minutos entre %d actividades." % (total, count))
+    weights = [max(w, 1) for w in weights]
+    spare = total - count
     weight_sum = sum(weights)
-    raw = [total * w / weight_sum for w in weights]
+    raw = [spare * w / weight_sum for w in weights]
     base = [int(x) for x in raw]
-    leftover = total - sum(base)
-    order = sorted(range(len(weights)), key=lambda i: (raw[i] - base[i]), reverse=True)
+    leftover = spare - sum(base)
+    order = sorted(range(count), key=lambda i: (raw[i] - base[i]), reverse=True)
     for i in order[:leftover]:
         base[i] += 1
-    return base
+    return [b + 1 for b in base]
 
 
 class Generator:

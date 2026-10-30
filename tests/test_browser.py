@@ -183,6 +183,61 @@ class BrowserTests(unittest.TestCase):
         self.console_errors = []
         self.bad_responses = []
 
+    def test_confirmacion_perdida_y_reintento_no_duplica(self):
+        self._draft()
+        p = self.page
+        p.get_by_label("Título de la sesión").fill("Una sola sesión")
+        before = len(support.Api(self.service)("GET", "/api/sessions")[1])
+
+        def processed_but_lost(route):
+            route.fetch()   # el servidor sí guarda…
+            route.abort()   # …pero la respuesta no llega al navegador
+        p.route("**/api/sessions", processed_but_lost)
+        p.get_by_role("button", name="Guardar versión revisada").click()
+        p.get_by_text("No recibimos la confirmación").wait_for()
+        p.unroute("**/api/sessions")
+        p.get_by_role("button", name="Guardar versión revisada").click()  # mismo contenido → misma clave
+        p.locator(".saved-notice").get_by_text("Versión revisada guardada").wait_for()
+        titles = [s["title"] for s in support.Api(self.service)("GET", "/api/sessions")[1]]
+        self.assertEqual(len(titles), before + 1)
+        self.assertEqual(titles.count("Una sola sesión"), 1)
+        self.console_errors = []
+
+    def test_conflicto_de_version_conserva_la_edicion(self):
+        session = support.generate_and_save(support.Api(self.service), reviewed=True)
+        p = self.page
+        p.goto(self.base + "/#/portafolio/" + session["id"])
+        p.get_by_role("button", name="Continuar edición").click()
+        p.get_by_label("Título de la sesión").fill("Mi edición en conflicto")
+        # Otra pestaña guarda antes una versión nueva de la misma sesión.
+        support.Api(self.service)("POST", "/api/sessions/%s/versions" % session["id"],
+                                  {"content": dict(session["currentVersion"]["content"], title="Edición de otra pestaña")})
+        p.get_by_role("button", name="Guardar borrador").click()
+        p.get_by_text("Mientras editabas se guardó otra versión").wait_for()
+        self.assertEqual(p.get_by_label("Título de la sesión").input_value(), "Mi edición en conflicto")
+        p.get_by_role("button", name="Guardar mi edición como sesión nueva").click()
+        p.get_by_role("button", name="Guardar borrador").click()
+        p.locator(".saved-notice").get_by_text("Borrador guardado").wait_for()
+        self.assertIn("Mi edición en conflicto", self.h1())
+        versions = support.Api(self.service)("GET", "/api/sessions/%s" % session["id"])[1]["versions"]
+        self.assertEqual([v["number"] for v in versions], [1, 2])
+        self.console_errors = []
+
+    def test_almacenamiento_bloqueado_el_flujo_sigue_en_memoria(self):
+        ctx = self.browser.new_context()
+        ctx.add_init_script("Object.defineProperty(window, 'localStorage', { get() { throw new Error('bloqueado'); } });")
+        p = ctx.new_page()
+        errors = []
+        p.on("pageerror", lambda e: errors.append(str(e)))
+        p.goto(self.base + "/#/aula")
+        p.get_by_role("button", name="Crear borrador").click()
+        p.get_by_role("heading", name="Revisar el borrador").wait_for()
+        p.get_by_text("este navegador no permite copias locales").wait_for()
+        p.get_by_role("button", name="Guardar borrador").click()
+        p.locator(".saved-notice").get_by_text("Borrador guardado").wait_for()
+        self.assertEqual(errors, [])
+        ctx.close()
+
     def test_error_422_muestra_los_problemas(self):
         self._draft()
         p = self.page
@@ -241,15 +296,26 @@ class BrowserTests(unittest.TestCase):
         self.assertCleanConsole()
 
     def test_movil_320_sin_desplazamiento_horizontal_y_capturas(self):
-        for width, name in ((320, "movil-320"), (390, "movil-390"), (768, "tablet-768"), (1440, "escritorio-1440")):
+        api = support.Api(self.service)
+        long_case = dict(support.CASE, materials=["pizarra", "papel", "lápiz", "Cartulinadecoloresrecortadaenformas" * 1])
+        _, draft = api("POST", "/api/drafts/generate", long_case)
+        content = dict(draft["content"], title="Sesiónconuntítulomuylargoysinespaciosparacomprobarelajuste" * 3)
+        self.long_session = api("POST", "/api/sessions", {"moduleId": draft["module"]["id"], "context": draft["context"],
+                                                          "content": content, "draftId": draft["draftId"]})[1]["id"]
+        # 640 px equivale a 1280 px con zoom del 200 %.
+        for width, name in ((320, "movil-320"), (390, "movil-390"), (640, "zoom200-1280"), (768, "tablet-768"), (1440, "escritorio-1440")):
             ctx = self.browser.new_context(viewport={"width": width, "height": 800})
             page = ctx.new_page()
-            for route in ("/#/hoy", "/#/aula", "/#/portafolio", "/#/red"):
+            for route in ("/#/hoy", "/#/aula", "/#/portafolio", "/#/red", "/#/aprendizaje", "/#/bienestar", "/#/oportunidades"):
                 page.goto(self.base + route)
                 page.locator("main h1").first.wait_for()
                 page.wait_for_timeout(250)
                 overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
                 self.assertLessEqual(overflow, 0, "%s %s" % (width, route))
+            page.goto(self.base + "/#/portafolio/" + self.long_session)
+            page.locator("main h1").first.wait_for()
+            overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
+            self.assertLessEqual(overflow, 0, "%s título y materiales largos" % width)
             page.goto(self.base + "/#/hoy")
             page.get_by_text("Tus sesiones recientes").wait_for()
             page.screenshot(path=str(SHOTS / ("hoy-%s.png" % name)), full_page=True)

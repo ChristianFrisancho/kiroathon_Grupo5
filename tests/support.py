@@ -108,7 +108,7 @@ def generate_and_save(api, reviewed=False, user=None, case=None):
             "context": draft["context"],
             "content": draft["content"],
             "markReviewed": reviewed,
-            "generatedBy": draft["generatedBy"],
+            "draftId": draft["draftId"],
         },
         user,
     )

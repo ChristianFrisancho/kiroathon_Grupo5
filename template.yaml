@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  AulaLista (equipo T005) - Copiloto del docente público. API Gateway HTTP API + Lambda Python 3.12 +
-  DynamoDB + Amazon Bedrock (API Converse). La misma función entrega el frontend en el mismo dominio.
+  AulaLista (equipo T005) - Copiloto del docente público. API Gateway HTTP API + Lambda Python 3.12 (API y
+  frontend en el mismo dominio) + Lambda worker de /jobs + DynamoDB + Amazon Bedrock (API Converse).
 
 Parameters:
   TeamId:
@@ -13,11 +13,14 @@ Parameters:
     Type: String
     Default: us.amazon.nova-lite-v1:0
     Description: Perfil de inferencia de Bedrock usado con la API Converse.
+  FoundationModelId:
+    Type: String
+    Default: amazon.nova-lite-v1:0
+    Description: Modelo base al que enruta el perfil (para restringir el permiso InvokeModel).
 
 Globals:
   Function:
     Runtime: python3.12
-    Timeout: 29
     MemorySize: 512
     Architectures: [arm64]
 
@@ -36,8 +39,29 @@ Resources:
           KeyType: HASH
         - AttributeName: sk
           KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
       SSESpecification:
         SSEEnabled: true
+
+  # Procesa /jobs de forma asíncrona. Solo accede a la tabla; no usa Bedrock.
+  JobWorkerFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: .
+      Handler: worker.handler
+      Description: Worker de /jobs (invocación asíncrona desde la API)
+      Timeout: 15
+      MemorySize: 256
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ItemsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ItemsTable
 
   AppFunction:
     Type: AWS::Serverless::Function
@@ -47,14 +71,17 @@ Resources:
       CodeUri: .
       Handler: app.handler
       Description: API de AulaLista y entrega del frontend
+      # API Gateway HTTP corta a los 30 s; la app reserva tiempo para responder (budget.py).
+      Timeout: 29
       Environment:
         Variables:
           TEAM_ID: !Ref TeamId
           TABLE_NAME: !Ref ItemsTable
           MODEL_ID: !Ref ModelId
+          JOB_WORKER_FUNCTION: !Ref JobWorkerFunction
           AULALISTA_STORE: dynamodb
           AULALISTA_GENERATOR: bedrock
-          AULALISTA_JOB_MODE: lazy
+          AULALISTA_JOB_MODE: lambda
           AULALISTA_DEMO_MODE: "true"
       Policies:
         - DynamoDBCrudPolicy:
@@ -64,8 +91,13 @@ Resources:
               Action:
                 - bedrock:InvokeModel
               Resource:
-                - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/*
-                - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*
+                # Solo el perfil configurado y el modelo base al que enruta (en las regiones del perfil «us.»).
+                - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${ModelId}
+                - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/${FoundationModelId}
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource: !GetAtt JobWorkerFunction.Arn
       Events:
         Root:
           Type: HttpApi
@@ -94,3 +126,5 @@ Outputs:
     Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
   TableName:
     Value: !Ref ItemsTable
+  JobWorkerName:
+    Value: !Ref JobWorkerFunction

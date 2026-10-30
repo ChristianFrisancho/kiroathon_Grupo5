@@ -1,7 +1,9 @@
-import { api, detailsList, writeErrorMessage } from '../api.js';
+import { api, detailsList, operationKey, writeErrorMessage } from '../api.js';
 import { clearWorking, localCopyAvailable, persistWorking, setFlash, state } from '../state.js';
 import { lessonSteps } from '../ui.js';
 import { announce, clear, disableAll, engineBadge, errorBox, h } from '../util.js';
+
+const MAX_MATERIALS = 20;
 
 const MAX_ACTIVITIES = 12;
 const MAX_TITLE = 200;
@@ -60,6 +62,10 @@ export async function renderRevisar({ navigate, isCurrent = () => true }) {
       if (a.description.length > MAX_TEXT) list.push(`Actividad ${i + 1}: la descripción es demasiado larga.`);
       if (!Number.isInteger(a.minutes) || a.minutes <= 0) list.push(`Actividad ${i + 1}: los minutos deben ser un entero mayor que 0.`);
     });
+    if (content.materials.length > MAX_MATERIALS) list.push(`Máximo ${MAX_MATERIALS} materiales.`);
+    if (content.materials.some((m) => m.length > 60)) list.push('Cada material admite 60 caracteres.');
+    if (content.purpose.length > MAX_TEXT || content.expectedEvidence.length > MAX_TEXT) list.push('El propósito y la evidencia admiten 2000 caracteres.');
+    if ((w.reason || '').length > 300) list.push('El motivo admite 300 caracteres.');
     const extra = content.materials.filter((m) => !declared.has(m.toLocaleLowerCase('es')));
     if (extra.length) list.push(`Materiales no declarados al preparar: ${extra.join(', ')}.`);
     if (Number.isInteger(target) && total() !== target) list.push(`Los tiempos suman ${total()} min y la clase dura ${target} min.`);
@@ -187,10 +193,19 @@ export async function renderRevisar({ navigate, isCurrent = () => true }) {
     if (list.length) { sync(); blockers.querySelector('ul') && saveDraft.focus(); return; }
     saving = true;
     const startedAt = revision;
+    const workingAtStart = state.working;
     // Copia de la operación: lo que se envía no cambia aunque el estado en memoria cambie.
-    const payload = JSON.parse(JSON.stringify({
-      context: w.context, content, markReviewed, generatedBy: w.generatedBy, reason: w.reason || '',
-    }));
+    // El origen (Bedrock, respaldo o docente) lo decide el servidor a partir de draftId; no se envía.
+    const body = JSON.parse(JSON.stringify(w.sessionId
+      ? { context: w.context, content, markReviewed, reason: w.reason || '', parentVersionId: w.parentVersionId || undefined }
+      : {
+        context: w.context, content, markReviewed, reason: w.reason || '', moduleId: w.moduleId,
+        draftId: w.draftId || undefined,
+        provenance: w.provenance && !w.draftId ? { experienceId: w.provenance.experienceId } : undefined,
+      }));
+    // Misma clave si se reintenta el mismo contenido: el servidor no duplica la sesión.
+    const payload = { ...body, operationKey: operationKey(w, body) };
+    persistWorking();
     clear(feedback);
     disableAll(editor, true);
     sync();
@@ -201,21 +216,34 @@ export async function renderRevisar({ navigate, isCurrent = () => true }) {
     try {
       const saved = w.sessionId
         ? await api.post(`/api/sessions/${w.sessionId}/versions`, payload)
-        : await api.post('/api/sessions', {
-          ...payload, moduleId: w.moduleId,
-          provenance: w.provenance ? { experienceId: w.provenance.experienceId } : undefined,
-        });
+        : await api.post('/api/sessions', payload);
       if (!saved || typeof saved.id !== 'string') throw new Error('Recibimos una respuesta inesperada del servidor.');
-      // Solo se limpia la copia local si no hubo ediciones después de enviar.
-      if (revision === startedAt) clearWorking();
+      // Solo se limpia la copia de ESTE guardado y si no hubo ediciones después de enviar.
+      if (state.working === workingAtStart && revision === startedAt) clearWorking();
       setFlash(markReviewed ? 'Versión revisada guardada' : 'Borrador guardado');
       if (isCurrent()) navigate(`/portafolio/${saved.id}`);
       else announce(markReviewed ? 'Versión revisada guardada en Mi portafolio' : 'Borrador guardado en Mi portafolio');
     } catch (error) {
       if (!isCurrent()) return;
       clear(feedback);
-      const box = errorBox(`${writeErrorMessage(error)} Tu edición sigue aquí.`, null, detailsList(error));
+      const message = writeErrorMessage(error);
+      const box = errorBox(message.includes('Tu edición sigue aquí') ? message : `${message} Tu edición sigue aquí.`,
+        null, detailsList(error));
       if (error.outcomeUnknown) box.appendChild(h('a', { class: 'btn', href: '#/portafolio' }, 'Revisar Mi portafolio'));
+      if (error.code === 'version_conflict' && w.sessionId) {
+        box.appendChild(h('div', { class: 'row' },
+          h('a', { class: 'btn', href: `#/portafolio/${w.sessionId}` }, 'Abrir la versión nueva'),
+          h('button', {
+            type: 'button', class: 'btn',
+            onclick: () => {
+              // La edición se conserva y se guardará como una sesión nueva, sin pisar la otra versión.
+              w.provenance = null; w.sessionId = null; w.parentVersionId = null; w.draftId = null; w.op = null;
+              content.title = `${content.title} (mi edición)`.slice(0, MAX_TITLE);
+              persistWorking();
+              navigate('/revisar');
+            },
+          }, 'Guardar mi edición como sesión nueva')));
+      }
       feedback.appendChild(box);
       box.focus();
       announce('No se pudo confirmar el guardado');
@@ -287,6 +315,14 @@ export async function renderRevisar({ navigate, isCurrent = () => true }) {
     h('div', { class: `alert ${g.isBedrock ? 'ok' : 'info'}` },
       h('div', { class: 'row' }, h('strong', null, 'Origen del borrador:'), engineBadge(g)),
       h('p', { class: 'm0 small' }, engineText)),
+    Array.isArray(w.reviewNotes) && w.reviewNotes.length
+      ? h('div', { class: 'alert warn' },
+          h('p', { class: 'm0' }, h('strong', null, 'Revisa antes de guardar:')),
+          h('ul', { class: 'problem-list' }, w.reviewNotes.map((n) => h('li', null, n))))
+      : null,
+    w.sessionId
+      ? h('p', { class: 'alert info' }, 'Estás editando la versión vigente de una sesión guardada: al guardar se crea una versión nueva y las anteriores se conservan.')
+      : null,
     w.provenance
       ? h('div', { class: 'alert info' },
           `Adaptación de «${w.provenance.title}», compartida por ${w.provenance.authorLabel}. La procedencia se conservará al guardar. `,

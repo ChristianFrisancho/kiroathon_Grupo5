@@ -79,6 +79,13 @@ export function reviewBadge(status) {
 }
 
 // Origen del borrador declarado por el servidor (Bedrock, respaldo local, plantilla o docente).
+export function originBadges(version) {
+  if (!version) return [];
+  return [engineBadge(version.generatedBy),
+    version.editedByTeacher && version.generatedBy && version.generatedBy.engine !== 'manual'
+      ? h('span', { class: 'badge' }, 'Editada por el docente') : null];
+}
+
 export function engineBadge(generatedBy) {
   if (!generatedBy) return null;
   if (generatedBy.engine === 'manual') return h('span', { class: 'badge' }, 'Editada por el docente');

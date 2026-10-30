@@ -41,7 +41,8 @@ class StructureTests(unittest.TestCase):
     def test_el_back_solo_usa_biblioteca_estandar(self):
         stdlib_ok = {"__future__", "json", "re", "os", "sys", "uuid", "copy", "threading", "sqlite3", "typing",
                      "dataclasses", "datetime", "decimal", "fractions", "pathlib", "concurrent", "http",
-                     "urllib", "mimetypes", "aulalista", "time", "base64"}
+                     "urllib", "mimetypes", "aulalista", "time", "base64", "hashlib", "unicodedata",
+                     "contextvars"}
         # boto3/botocore solo se importan dentro de funciones (disponibles en el runtime de Lambda).
         aws_lazy = {"boto3", "botocore"}
         for path in (BACK / "aulalista").glob("*.py"):
@@ -160,8 +161,9 @@ class JavascriptTests(unittest.TestCase):
     def test_sintaxis_de_los_modulos(self):
         for path in JS_FILES:
             with self.subTest(file=path.name):
+                # encoding explícito: en Windows la consola no es UTF-8 y los acentos romperían la prueba.
                 result = subprocess.run(["node", "--input-type=module", "--check"], input=path.read_text(encoding="utf-8"),
-                                        capture_output=True, text=True, timeout=30)
+                                        capture_output=True, text=True, encoding="utf-8", timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
 
 

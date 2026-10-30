@@ -1,4 +1,4 @@
-import { api, detailsList, writeErrorMessage } from '../api.js';
+import { api, detailsList, operationKey, writeErrorMessage } from '../api.js';
 import { setWorking, state } from '../state.js';
 import { announce, append, clear, errorBox, formatDate, h, ratingLine, simBadge, formatScore } from '../util.js';
 
@@ -40,6 +40,7 @@ function activityView(content) {
 }
 
 export async function renderExperiencia({ params, navigate }) {
+  const commentOp = {};
   const id = params[0];
   let exp = await api.get(`/api/experiences/${id}`);
   const root = h('div');
@@ -183,7 +184,8 @@ export async function renderExperiencia({ params, navigate }) {
           submit.disabled = true;
           clear(feedback);
           try {
-            exp = await api.post(`/api/experiences/${exp.id}/comments`, { text: text.value });
+            const body = { text: text.value };
+            exp = await api.post(`/api/experiences/${exp.id}/comments`, { ...body, operationKey: operationKey(commentOp, body) });
             paint();
           } catch (error) {
             feedback.appendChild(errorBox(writeErrorMessage(error, 'publicar el comentario')));
@@ -218,7 +220,8 @@ export async function renderExperiencia({ params, navigate }) {
             });
             setWorking({
               sessionId: null, moduleId: draft.module.id, context: draft.context, content: draft.content,
-              generatedBy: draft.generatedBy, provenance: draft.provenance,
+              draftId: draft.draftId, reviewNotes: draft.reviewNotes || [],
+              generatedBy: draft.generatedBy, provenance: draft.provenance, reason: '',
             });
             navigate('/revisar');
           } catch (error) {

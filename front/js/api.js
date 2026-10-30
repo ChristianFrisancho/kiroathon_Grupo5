@@ -88,7 +88,7 @@ export const api = {
 // Mensaje para escrituras: distingue «falló» de «no sabemos si se guardó».
 export function writeErrorMessage(error, what = 'guardar') {
   if (error && error.outcomeUnknown) {
-    return 'No recibimos la confirmación. Revisa Mi portafolio antes de volver a guardar para evitar duplicados.';
+    return 'No recibimos la confirmación. Tu edición sigue aquí. Revisa Mi portafolio antes de volver a guardar.';
   }
   return (error && error.message) || `No pudimos ${what}.`;
 }
@@ -98,4 +98,19 @@ export function detailsList(error) {
   const details = error && error.details;
   if (Array.isArray(details)) return details.filter((d) => typeof d === 'string');
   return [];
+}
+
+// Clave de operación estable por contenido: el mismo envío repetido (p. ej. tras perder la confirmación)
+// reutiliza la clave y el servidor devuelve el resultado ya confirmado; un contenido distinto usa otra clave.
+function randomKey() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') return `op-${window.crypto.randomUUID()}`;
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  return `op-${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+export function operationKey(holder, payload) {
+  const digest = JSON.stringify(payload);
+  if (!holder.op || holder.op.digest !== digest) holder.op = { key: randomKey(), digest };
+  return holder.op.key;
 }

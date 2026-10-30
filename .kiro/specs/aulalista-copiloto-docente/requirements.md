@@ -20,17 +20,22 @@ Fuente: `PLATAFORMA-PARA-KIRON.md` (secciones 3 a 10). En el repositorio no hay 
 1. WHEN el docente confirma módulo, grado, duración (10–180 min), materiales e indicaciones y pulsa «Crear borrador» THEN Amazon Bedrock (API Converse) SHALL devolver una sesión con propósito, actividades con minutos, materiales y evidencia esperada, con referencias a M1–M3.
 2. El prompt SHALL incluir el contexto confirmado, el rol del docente de colegio público, el límite de longitud y el tono, y SHALL tratar módulo e indicaciones como datos, nunca como instrucciones.
 3. El código SHALL validar que los minutos sumen la duración, que las referencias existan y que los materiales sean los declarados. Una entrada inválida (falta el grado, duración fuera de rango, indicaciones de más de 500 caracteres) SHALL rechazarse sin llamar al modelo.
-4. IF Bedrock responde ThrottlingException THEN el sistema SHALL reintentar con espera. IF el modelo no responde THEN SHALL entregar un borrador de respaldo rotulado «Respaldo local». IF ocurre otro error THEN SHALL responder 502 con un mensaje comprensible, conservando las entradas.
-5. Cada borrador SHALL declarar su origen (`generatedBy`); el cliente no puede atribuir a Bedrock un texto que no salió de Bedrock.
+4. IF Bedrock responde ThrottlingException AND queda presupuesto para otro intento dentro del plazo de la Lambda THEN el sistema SHALL reintentar con espera. IF no queda presupuesto o el modelo no responde THEN SHALL entregar antes del límite un borrador de respaldo rotulado «Respaldo local». IF ocurre un error de permisos, validación o una salida ilegible o truncada THEN SHALL responder 502 con un mensaje comprensible, conservando las entradas.
+5. El servidor SHALL emitir cada borrador con `draftId` y guardar su origen. Al guardar, `generatedBy` SHALL derivarse de ese registro; un `generatedBy` enviado por el navegador SHALL ignorarse. La sesión SHALL indicar `editedByTeacher` si el contenido difiere del borrador. Guardar no SHALL volver a llamar al modelo.
+6. IF ninguna actividad del modelo cita un fragmento real THEN el borrador SHALL rechazarse. Las referencias inventadas SHALL quitarse con aviso, y los recursos mencionados y no declarados SHALL avisarse para revisión humana.
 
 ### R3. Revisión humana
 1. El resultado nace como borrador; solo una acción expresa («Guardar versión revisada» o «Marcar como revisada») lo marca revisado.
 2. Una edición posterior, una regeneración o una copia SHALL crear un borrador que no hereda la revisión, y SHALL conservar el historial.
+3. WHEN dos guardados parten de la misma versión THEN solo uno SHALL confirmarse y el otro SHALL recibir 409 `version_conflict`. Nunca SHALL existir dos versiones con el mismo número. El frontend SHALL conservar la edición y ofrecer abrir la versión nueva o guardarla como sesión nueva.
 
 ### R4. Mi portafolio
 1. Las sesiones y versiones SHALL persistir en DynamoDB y recuperarse tras recargar o en otro contenedor de Lambda.
 2. El docente SHALL poder continuar la edición, crear copias, regenerar e imprimir.
-3. Cada sesión admite registros de aplicación (fecha declarada, actividad, observación, próximo ajuste) ligados a una versión y rotulados «Registro simulado».
+3. Cada sesión admite registros de aplicación (fecha declarada, actividad, observación, próximo ajuste) ligados a la versión elegida en «Versión utilizada» y rotulados «Registro simulado».
+4. Un fallo de escritura SHALL dejar los datos como estaban: sin versiones huérfanas ni versión vigente restaurada.
+5. Repetir una escritura con la misma `operationKey` y el mismo contenido SHALL devolver el resultado ya confirmado, sin duplicar. La misma clave con otro contenido SHALL dar 422.
+6. El texto de formularios no enviados (registro, compartir) SHALL conservarse al cambiar de versión o recargar.
 
 ### R5. Mi red, Aprendemos juntos
 1. Compartir SHALL exigir confirmación expresa y una versión revisada; los registros privados no se copian.
@@ -47,7 +52,7 @@ Fuente: `PLATAFORMA-PARA-KIRON.md` (secciones 3 a 10). En el repositorio no hay 
 ### R7. Contratos de insignias (rutas públicas, sin autenticación)
 1. GET /health SHALL responder 200 con {"status":"ok","team":"T005"}, tomando `team` de `TEAM_ID` (parámetro `TeamId`).
 2. POST /items {"value"} SHALL responder 201 {id, value} y guardar en `ItemsTable`; GET /items/{id} SHALL devolverlo (404 si no existe); GET /items SHALL listar hasta 100 ítems, los más recientes primero, paginando la tabla completa.
-3. POST /jobs {"input"} SHALL responder 202 {jobId} y guardar el trabajo en `ItemsTable`; GET /jobs/{jobId} SHALL devolver status «done» y la entrada invertida antes de 12 s.
+3. POST /jobs {"input"} SHALL responder 202 {jobId}, guardar el trabajo en `ItemsTable` y despachar un worker independiente. GET /jobs/{jobId} SHALL solo leer y devolver status «done» con la entrada invertida antes de 12 s. Un fallo de despacho SHALL dejar el trabajo en `failed` y responder 503.
 4. GET {ApiUrl} SHALL responder 200 text/html sin redirecciones.
 
 ### R8. Calidad

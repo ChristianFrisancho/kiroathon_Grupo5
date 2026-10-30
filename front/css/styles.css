@@ -105,6 +105,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 .mt { margin-top: 1rem; }
 .grow { flex: 1 1 16rem; min-width: 0; }
 .pre { white-space: pre-line; }
+.session-title, .source, .pre, .badge, .problem-list li { overflow-wrap: anywhere; }
 
 /* Cabecera y navegación ---------------------------------------------------- */
 .site-header {

@@ -161,6 +161,7 @@ export async function renderAula({ navigate, isCurrent = () => true }) {
       const draft = await api.post('/api/drafts/generate', { ...payload, grade: payload.grade.trim() });
       setWorking({
         sessionId: null, moduleId: draft.module.id, context: draft.context, content: draft.content,
+        draftId: draft.draftId, reviewNotes: draft.reviewNotes || [],
         generatedBy: draft.generatedBy, provenance: draft.provenance || null, reason: '',
       });
       if (isCurrent()) navigate('/revisar');
